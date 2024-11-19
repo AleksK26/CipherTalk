@@ -9,26 +9,22 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/AleksK26/wasatext/service/auth"
-	"github.com/AleksK26/wasatext/service/conversations"
-	"github.com/AleksK26/wasatext/service/db"
-	"github.com/AleksK26/wasatext/service/groups"
-	"github.com/AleksK26/wasatext/service/messages"
-	"github.com/AleksK26/wasatext/service/users"
+	"github.com/AleksK26/WASA_AleksK_2024-25/service/api"
+	"github.com/AleksK26/WASA_AleksK_2024-25/service/database"
 
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	loadConfiguration()
-	db.ConnectDatabase()
+	loadConfiguration() // Call loadConfiguration
+	database.ConnectDatabase()
 
 	router := gin.Default()
-	router.Use(enableCORS())
-	router.Use(auth.Middleware())
+	router.Use(enableCORS()) // Call enableCORS
+	router.Use(api.Middleware())
 
 	registerAPIRoutes(router)
-	registerWebUI(router)
+	registerWebUI(router) // Call registerWebUI
 
 	server := &http.Server{
 		Addr:    ":8080",
@@ -39,20 +35,20 @@ func main() {
 }
 
 func registerAPIRoutes(router *gin.Engine) {
-	router.POST("/session", users.LoginHandler)
-	router.PATCH("/users/me", users.SetMyUserName)
-	router.GET("/conversations", conversations.GetConversationsHandler)
-	router.GET("/conversations/:id", conversations.GetConversationHandler)
-	router.POST("/messages", messages.SendMessageHandler)
-	router.POST("/messages/:id/forward", messages.ForwardMessageHandler)
-	router.POST("/messages/:id/comments", messages.CommentMessageHandler)
-	router.DELETE("/messages/:id/comments", messages.UncommentMessageHandler)
-	router.DELETE("/messages/:id", messages.DeleteMessageHandler)
-	router.POST("/groups/:id/members", groups.AddToGroupHandler)
-	router.DELETE("/groups/:id/members", groups.LeaveGroupHandler)
-	router.PATCH("/groups/:id/name", groups.SetGroupNameHandler)
-	router.PATCH("/users/me/photo", users.SetMyPhotoHandler)
-	router.PATCH("/groups/:id/photo", groups.SetGroupPhotoHandler)
+	router.POST("/session", api.LoginHandler)
+	router.PATCH("/users/me", api.SetMyUserName)
+	router.GET("/conversations", api.GetConversationsHandler)
+	router.GET("/conversations/:id", api.GetConversationHandler)
+	router.POST("/messages", api.SendMessageHandler)
+	router.POST("/messages/:id/forward", api.ForwardMessageHandler)
+	router.POST("/messages/:id/comments", api.CommentMessageHandler)
+	router.DELETE("/messages/:id/comments", api.UncommentMessageHandler)
+	router.DELETE("/messages/:id", api.DeleteMessageHandler)
+	router.POST("/groups/:id/members", api.AddToGroupHandler)
+	router.DELETE("/groups/:id/members", api.LeaveGroupHandler)
+	router.PATCH("/groups/:id/name", api.SetGroupNameHandler)
+	router.PATCH("/users/me/photo", api.SetMyPhotoHandler)
+	router.PATCH("/groups/:id/photo", api.SetGroupPhotoHandler)
 }
 
 func gracefulShutdown(server *http.Server) {
