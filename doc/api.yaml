@@ -1,0 +1,293 @@
+openapi: 3.0.3
+info:
+  title: WASAText API
+  description: API for WASAText functionality, including user management, conversations, messages, and reactions.
+  version: "1.0"
+paths:
+  /session:
+    post:
+      tags: [ "login" ]
+      summary: Logs in the user
+      operationId: doLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: Maria
+      responses:
+        '201':
+          description: User successfully logged in.
+
+  /users/me:
+    patch:
+      tags: [ "users" ]
+      summary: Update user details
+      operationId: setMyUserName
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newName:
+                  type: string
+                  example: MariaNew
+      responses:
+        '200':
+          description: Username updated.
+
+  /conversations:
+    get:
+      tags: [ "conversations" ]
+      summary: Get all conversations for the logged-in user
+      operationId: getMyConversations
+      responses:
+        '200':
+          description: List of conversations.
+
+  /conversations/{id}:
+    get:
+      tags: [ "conversations" ]
+      summary: Get details of a single conversation
+      operationId: getConversation
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Details of the conversation.
+
+  /messages:
+    post:
+      tags: [ "messages" ]
+      summary: Send a new message
+      operationId: sendMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                conversationId:
+                  type: string
+                  example: "convo12345"
+                senderId:
+                  type: string
+                  example: "user123"
+                content:
+                  type: string
+                  example: "Hello!"
+      responses:
+        '201':
+          description: Message sent.
+
+  /messages/{id}/forward:
+    post:
+      tags: [ "messages" ]
+      summary: Forward a message
+      operationId: forwardMessage
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targetConversationId:
+                  type: string
+                  example: "convo67890"
+      responses:
+        '200':
+          description: Message forwarded.
+
+  /messages/{id}/comments:
+    post:
+      tags: [ "reactions" ]
+      summary: Add a comment to a message
+      operationId: commentMessage
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reaction:
+                  type: string
+                  example: "❤️"
+      responses:
+        '201':
+          description: Comment added.
+
+    delete:
+      tags: [ "reactions" ]
+      summary: Remove a comment from a message
+      operationId: uncommentMessage
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Comment removed.
+
+  /messages/{id}:
+    delete:
+      tags: [ "messages" ]
+      summary: Delete a message
+      operationId: deleteMessage
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: Message deleted.
+
+  /groups/{id}/members:
+    post:
+      tags: [ "groups" ]
+      summary: Add a user to a group
+      operationId: addToGroup
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  example: "user123"
+      responses:
+        '200':
+          description: User added to the group.
+
+    delete:
+      tags: [ "groups" ]
+      summary: Leave a group
+      operationId: leaveGroup
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      responses:
+        '204':
+          description: User left the group.
+
+  /groups/{id}/name:
+    patch:
+      tags: [ "groups" ]
+      summary: Update the group name
+      operationId: setGroupName
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                newName:
+                  type: string
+                  example: "New Group Name"
+      responses:
+        '200':
+          description: Group name updated.
+
+  /users/me/photo:
+    patch:
+      tags: [ "users" ]
+      summary: Update user profile photo
+      operationId: setMyPhoto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                photoUrl:
+                  type: string
+                  example: "https://example.com/newphoto.jpg"
+      responses:
+        '200':
+          description: User photo updated.
+
+  /groups/{id}/photo:
+    patch:
+      tags: [ "groups" ]
+      summary: Update group photo
+      operationId: setGroupPhoto
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                photoUrl:
+                  type: string
+                  example: "https://example.com/groupphoto.jpg"
+      responses:
+        '200':
+          description: Group photo updated.
+
+#authentification
+Authorization: Bearer <token>
+
+components:
+  securitySchemes:
+    bearerAuth:
+
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+security:
+- bearerAuth: []

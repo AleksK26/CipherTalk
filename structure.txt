@@ -1,0 +1,19 @@
+wasatext/                # Root module (github.com/yourusername/wasatext)
+├── cmd/
+│   └── webapi/          # Contains the executable for the backend
+│       ├── cors.go       # CORS middleware
+│       ├── main.go       # Entrypoint (CLI flags, server setup)
+│       ├── register-web-ui.go # Web UI registration
+│       └── ...           # Other CLI-related files
+├── service/             # All backend packages
+│   ├── conversations/   # Conversations service
+│   ├── messages/        # Messages service
+│   ├── users/           # Users service
+│   ├── groups/          # Groups service
+│   ├── db/              # Database package
+│   └── ...              # Other services
+├── webui/               # Vue.js frontend (to be added later)
+├── go.mod               # Go module definition
+├── go.sum               # Dependency checksums
+├── vendor/              # Dependencies (managed via `go mod vendor`)
+└── ...                  # Other files (LICENSE, README, etc.)
