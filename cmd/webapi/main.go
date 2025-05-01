@@ -2,68 +2,116 @@ package main
 
 import (
 	"context"
-	"log"
+	"database/sql"
+	"errors"
+	"fmt"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/AleksK26/WASA_AleksK_2024-25/service/api"
 	"github.com/AleksK26/WASA_AleksK_2024-25/service/database"
-
-	"github.com/gin-gonic/gin"
+	"github.com/AleksK26/WASA_AleksK_2024-25/service/globaltime"
+	"github.com/ardanlabs/conf"
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	loadConfiguration() // Call loadConfiguration
-	database.ConnectDatabase()
-
-	router := gin.Default()
-	router.Use(enableCORS()) // Call enableCORS
-	router.Use(api.Middleware())
-
-	registerAPIRoutes(router)
-	registerWebUI(router) // Call registerWebUI
-
-	server := &http.Server{
-		Addr:    ":8080",
-		Handler: router,
+	if err := run(); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "error: ", err)
+		os.Exit(1)
 	}
-
-	gracefulShutdown(server)
 }
 
-func registerAPIRoutes(router *gin.Engine) {
-	router.POST("/session", api.LoginHandler)
-	router.PATCH("/users/me", api.SetMyUserName)
-	router.GET("/conversations", api.GetConversationsHandler)
-	router.GET("/conversations/:id", api.GetConversationHandler)
-	router.POST("/messages", api.SendMessageHandler)
-	router.POST("/messages/:id/forward", api.ForwardMessageHandler)
-	router.POST("/messages/:id/comments", api.CommentMessageHandler)
-	router.DELETE("/messages/:id/comments", api.UncommentMessageHandler)
-	router.DELETE("/messages/:id", api.DeleteMessageHandler)
-	router.POST("/groups/:id/members", api.AddToGroupHandler)
-	router.DELETE("/groups/:id/members", api.LeaveGroupHandler)
-	router.PATCH("/groups/:id/name", api.SetGroupNameHandler)
-	router.PATCH("/users/me/photo", api.SetMyPhotoHandler)
-	router.PATCH("/groups/:id/photo", api.SetGroupPhotoHandler)
-}
-
-func gracefulShutdown(server *http.Server) {
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
-
-	<-stop
-	log.Println("Shutting down the server...")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := server.Shutdown(ctx); err != nil {
-		log.Fatalf("Server forced to shut down: %s\n", err)
+func run() error {
+	rand.Seed(globaltime.Now().UnixNano())
+	cfg, err := loadConfiguration()
+	if err != nil {
+		if errors.Is(err, conf.ErrHelpWanted) {
+			return nil
+		}
+		return err
 	}
+	logger := logrus.New()
+	logger.SetOutput(os.Stdout)
+	if cfg.Debug {
+		logger.SetLevel(logrus.DebugLevel)
+	} else {
+		logger.SetLevel(logrus.InfoLevel)
+	}
+	logger.Infof("application initializing")
+	logger.Println("initializing database support")
+	dbconn, err := sql.Open("sqlite3", cfg.DB.Filename)
+	if err != nil {
+		logger.WithError(err).Error("error opening SQLite DB")
+		return fmt.Errorf("opening SQLite: %w", err)
+	}
+	defer func() {
+		logger.Debug("database stopping")
+		_ = dbconn.Close()
+	}()
+	db, err := database.New(dbconn)
+	if err != nil {
+		logger.WithError(err).Error("error creating AppDatabase")
+		return fmt.Errorf("creating AppDatabase: %w", err)
+	}
+	logger.Info("initializing API server")
+	shutdown := make(chan os.Signal, 1)
+	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
+	serverErrors := make(chan error, 1)
+	apirouter, err := api.New(api.Config{
+		Logger:   logger,
+		Database: db,
+	})
+	if err != nil {
+		logger.WithError(err).Error("error creating the API server instance")
+		return fmt.Errorf("creating the API server instance: %w", err)
+	}
+	router := apirouter.Handler()
+	router, err = registerWebUI(router)
+	if err != nil {
+		logger.WithError(err).Error("error registering web UI handler")
+		return fmt.Errorf("registering web UI handler: %w", err)
+	}
+	router = applyCORSHandler(router)
+	apiserver := http.Server{
+		Addr:              cfg.Web.APIHost,
+		Handler:           router,
+		ReadTimeout:       cfg.Web.ReadTimeout,
+		ReadHeaderTimeout: cfg.Web.ReadTimeout,
+		WriteTimeout:      cfg.Web.WriteTimeout,
+	}
+	go func() {
+		logger.Infof("API listening on %s", apiserver.Addr)
+		serverErrors <- apiserver.ListenAndServe()
+		logger.Infof("stopping API server")
+	}()
+	select {
+	case err := <-serverErrors:
+		return fmt.Errorf("server error: %w", err)
 
-	log.Println("Server shut down successfully")
+	case sig := <-shutdown:
+		logger.Infof("signal %v received, start shutdown", sig)
+		err := apirouter.Close()
+		if err != nil {
+			logger.WithError(err).Warning("graceful shutdown of apirouter error")
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), cfg.Web.ShutdownTimeout)
+		defer cancel()
+		err = apiserver.Shutdown(ctx)
+		if err != nil {
+			logger.WithError(err).Warning("error during graceful shutdown of HTTP server")
+			err = apiserver.Close()
+		}
+		switch {
+		case sig == syscall.SIGSTOP:
+			return errors.New("integrity issue caused shutdown")
+		case err != nil:
+			return fmt.Errorf("could not stop server gracefully: %w", err)
+		}
+	}
+	return nil
 }
