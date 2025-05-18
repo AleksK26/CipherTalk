@@ -153,7 +153,7 @@ func main() {
 	b = controlRegsRegex.ReplaceAll(b, []byte("_ [0]uint64"))
 
 	// Remove fields that are added by glibc
-	// Note that this is unstable as the identifiers are private.
+	// Note that this is unstable as the identifers are private.
 	removeFieldsRegex := regexp.MustCompile(`X__glibc\S*`)
 	b = removeFieldsRegex.ReplaceAll(b, []byte("_"))
 
@@ -182,15 +182,6 @@ func main() {
 	ethtoolDrvinfoStructs := ethtoolDrvinfoTypes.FindAll(b, -1)
 	for _, s := range ethtoolDrvinfoStructs {
 		newNames := convertEthtoolDrvinfoNames.ReplaceAll(s, []byte("$1$2[$3]byte"))
-		b = bytes.Replace(b, s, newNames, 1)
-	}
-
-	// Convert []int8 to []byte in PtpPinDesc
-	ptpBytesRegex := regexp.MustCompile(`(Name)(\s+)\[(\d+)\]u?int8`)
-	ptpIoctlType := regexp.MustCompile(`PtpPinDesc\s+struct {[^}]*}`)
-	ptpStructs := ptpIoctlType.FindAll(b, -1)
-	for _, s := range ptpStructs {
-		newNames := ptpBytesRegex.ReplaceAll(s, []byte("$1$2[$3]byte"))
 		b = bytes.Replace(b, s, newNames, 1)
 	}
 

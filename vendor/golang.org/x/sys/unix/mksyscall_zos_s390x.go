@@ -374,7 +374,7 @@ func processStream(s *bufio.Scanner, asm, go1 *bufio.Writer, m *map[string]int64
 		}
 		// Prepare arguments to Syscall.
 		var args []string
-		var fargs []string // for call forwarding
+		var fargs []string // for call fowarding
 		n := 0
 		for _, param := range in {
 			p := parseParam(param)
