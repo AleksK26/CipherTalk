@@ -3,21 +3,16 @@ package main
 import (
 	"net/http"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gorilla/handlers"
 )
 
-func enableCORS() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-		c.Writer.Header().Set("Access-Control-Max-Age", "1") // Set Max-Age to 1 second
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(http.StatusNoContent)
-			return
-		}
-
-		c.Next()
-	}
+func applyCORSHandler(h http.Handler) http.Handler {
+	return handlers.CORS(
+		handlers.AllowedHeaders([]string{
+			"content-type", "Access-Control-Allow-Origin", "Access-Control-Allow-Headers", "X-Requested-With", "Authorization",
+		}),
+		handlers.AllowedMethods([]string{"GET", "POST", "OPTIONS", "DELETE", "PUT"}),
+		handlers.AllowedOrigins([]string{"*"}),
+		handlers.MaxAge(1),
+	)(h)
 }

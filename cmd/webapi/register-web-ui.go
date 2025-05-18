@@ -1,24 +1,26 @@
+//go:build webui
+
 package main
 
 import (
-	"log"
+	"fmt"
+	"io/fs"
 	"net/http"
-	"os"
-	"path/filepath"
+	"strings"
 
-	"github.com/gin-gonic/gin"
+	"github.com/AleksK26/WASA_AleksK_2024-25/webui"
 )
 
-func registerWebUI(router *gin.Engine) {
-	webUIPath := filepath.Join("..", "webui", "dist")
-	if _, err := os.Stat(webUIPath); os.IsNotExist(err) {
-		log.Println("Web UI not found, skipping registration")
-		return
+func registerWebUI(hdl http.Handler) (http.Handler, error) {
+	distDirectory, err := fs.Sub(webui.Dist, "dist")
+	if err != nil {
+		return nil, fmt.Errorf("error embedding WebUI dist/ directory: %w", err)
 	}
-
-	router.NoRoute(func(c *gin.Context) {
-		c.File(filepath.Join(webUIPath, "index.html"))
-	})
-
-	router.StaticFS("/static", http.Dir(webUIPath))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.RequestURI, "/dashboard/") {
+			http.StripPrefix("/dashboard/", http.FileServer(http.FS(distDirectory))).ServeHTTP(w, r)
+			return
+		}
+		hdl.ServeHTTP(w, r)
+	}), nil
 }

@@ -2,11 +2,10 @@ openapi: 3.0.3
 info:
   title: WASAText
   description: |-
-    This OpenAPI document describes APIs for the project "WASAText".
+    This OpenAPI document describes the APIs for the project "WASAText".
 
-    Student: Damir Tassybayev
-    Matricola: 2046612
-    E-mail: tassybayev.2046612@studenti.uniroma1.it
+    Student: Aleksandar Kirilov
+    Matricola: 2059920
   version: "1.0.2"
 
 tags:

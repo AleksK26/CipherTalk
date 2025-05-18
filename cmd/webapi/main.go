@@ -107,8 +107,9 @@ func run() error {
 			err = apiserver.Close()
 		}
 		switch {
-		case sig == syscall.SIGSTOP:
-			return errors.New("integrity issue caused shutdown")
+		// case sig == syscall.SIGSTOP:
+		// 	return errors.New("integrity issue caused shutdown")
+		// commented out because it gives error on a windows machine
 		case err != nil:
 			return fmt.Errorf("could not stop server gracefully: %w", err)
 		}
