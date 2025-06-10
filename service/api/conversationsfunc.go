@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/AleksK26/WASA_AleksK_2024-25/api/reqcontext"
+	"github.com/AleksK26/WASA_AleksK_2024-25/service/api/reqcontext"
 	"github.com/AleksK26/WASA_AleksK_2024-25/service/database"
 	"github.com/julienschmidt/httprouter"
 )
