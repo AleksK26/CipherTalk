@@ -2,10 +2,11 @@ openapi: 3.0.3
 info:
   title: WASAText
   description: |-
-    This OpenAPI document describes the APIs for the project "WASAText".
+    This OpenAPI document describes APIs for the project "WASAText".
 
     Student: Aleksandar Kirilov
     Matricola: 2059920
+    E-mail: kirilov.2059920@studenti.uniroma1.it
   version: "1.0.2"
 
 tags:
