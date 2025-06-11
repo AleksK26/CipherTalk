@@ -1,8 +1,9 @@
-# This is the configuration file for the API service
-# Description of this part is present in the `main.go` file
-
 log:
   level: debug
+
+db:
+  filename: C:/Users/hp pc/Desktop/WASA2024Project/service/database/decaf.db
+
 #  methodname: false
 #  json: false
 #  destination: stderr

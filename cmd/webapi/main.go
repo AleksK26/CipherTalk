@@ -44,6 +44,8 @@ func run() error {
 	}
 	logger.Infof("application initializing")
 	logger.Println("initializing database support")
+	logger.Infof("Current working directory: %s", func() string { cwd, _ := os.Getwd(); return cwd }())
+	logger.Infof("Opening SQLite DB at: %s", cfg.DB.Filename)
 	dbconn, err := sql.Open("sqlite3", cfg.DB.Filename)
 	if err != nil {
 		logger.WithError(err).Error("error opening SQLite DB")
@@ -107,8 +109,8 @@ func run() error {
 			err = apiserver.Close()
 		}
 		switch {
-		case sig == syscall.SIGSTOP:
-			return errors.New("integrity issue caused shutdown")
+		// case sig == syscall.SIGSTOP: // commented out because gives error on windows system
+		// return errors.New("integrity issue caused shutdown")
 		case err != nil:
 			return fmt.Errorf("could not stop server gracefully: %w", err)
 		}

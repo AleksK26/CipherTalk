@@ -13,7 +13,7 @@ import (
 
 type WebAPIConfiguration struct {
 	Config struct {
-		Path string `conf:"default:/conf/config.yml"`
+		Path string `conf:"default:demo/config.yml"` //changed the conf:"default:/conf/config.yml to  conf:"default:demo/config.yml
 	}
 	Web struct {
 		APIHost         string        `conf:"default:0.0.0.0:3000"`
