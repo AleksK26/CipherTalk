@@ -31,19 +31,21 @@
               alt="Profile Picture"
               class="profile-picture"
             />
+            <div v-else class="profile-picture placeholder">{{ getInitials(conv.name) }}</div>
           </div>
           <div class="conversation-details">
             <h4>{{ conv.name }}</h4>
             <p v-if="conv.lastMessage" class="last-message">
-              Last message by {{ conv.lastMessage.senderName }}:
+              <span class="last-message-sender">Last by {{ conv.lastMessage.senderName }}:</span>
               <img v-if="conv.lastMessage.attachment"
                    :src="'data:image/*;base64,' + conv.lastMessage.attachment"
                    class="attachment-thumbnail"
                    alt="Attachment">
               <span v-if="isForwarded(conv.lastMessage)" v-html="getFormattedMessage(conv.lastMessage)"></span>
               <span v-else>{{ getFormattedMessage(conv.lastMessage) }}</span>
-              at {{ new Date(conv.lastMessage.timestamp).toLocaleString() }}
+              <span class="last-message-time">at {{ new Date(conv.lastMessage.timestamp).toLocaleString() }}</span>
             </p>
+            <p v-else class="no-messages">No messages yet.</p>
           </div>
         </div>
       </div>
@@ -126,6 +128,10 @@ export default {
     newGroup() {
       this.$router.push({ path: "/new-group" });
     },
+    getInitials(name) {
+      if (!name) return "?";
+      return name.split(" ").map(n => n[0]).join("").toUpperCase();
+    },
   },
   mounted() {
     this.username = localStorage.getItem("name") || "Guest";
@@ -177,6 +183,15 @@ export default {
   border-radius: 50%;
 }
 
+.profile-picture.placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #ccc;
+  color: #fff;
+  font-weight: bold;
+}
+
 .conversation-details h4 {
   margin-top: 0;
   margin-bottom: 0;
@@ -187,6 +202,20 @@ export default {
   align-items: center;
   gap: 8px;
   margin: 4px 0;
+}
+
+.last-message-sender {
+  font-weight: bold;
+}
+
+.last-message-time {
+  font-size: 0.8em;
+  color: #888;
+}
+
+.no-messages {
+  color: #888;
+  font-style: italic;
 }
 
 .attachment-thumbnail {

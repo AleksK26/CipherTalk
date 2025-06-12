@@ -34,14 +34,15 @@
         <h2 class="results-title">Results:</h2>
         <template v-if="users.length > 0">
           <div v-for="user in users" :key="user.id" class="user-card">
-            <h5 class="user-name">
-              @{{ user.name }}
-            </h5>
+            <div class="user-info">
+              <span class="user-avatar">{{ getInitials(user.name) }}</span>
+              <h5 class="user-name">@{{ user.name }}</h5>
+            </div>
             <button
               class="text-button"
               @click="navigateToConversation(user.id, user.name)"
             >
-              Text
+              Start Chat
             </button>
           </div>
         </template>
@@ -123,7 +124,11 @@ export default {
     },
     newGroup() {
       this.$router.push({ path: "/new-group" });
-    }
+    },
+    getInitials(name) {
+      if (!name) return "?";
+      return name.split(" ").map(n => n[0]).join("").toUpperCase();
+    },
   },
   mounted() {
     const token = localStorage.getItem("token");
@@ -213,6 +218,24 @@ export default {
 
 .user-card:hover {
   background-color: #e9ecef;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+}
+
+.user-avatar {
+  width: 40px;
+  height: 40px;
+  background-color: #007bff;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 18px;
+  margin-right: 10px;
 }
 
 .user-name {

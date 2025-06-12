@@ -7,6 +7,7 @@ import ProfileView from "../views/ProfileView.vue";
 import GroupsView from "../views/GroupsView.vue"
 import GroupCreateView from "../views/GroupCreateView.vue"
 import GroupEditView from "../views/GroupEditView.vue"
+import NotFoundView from "../views/NotFoundView.vue";
 
 const routes = [
   { path: "/", component: LoginView },
@@ -16,12 +17,23 @@ const routes = [
   { path: "/me", component: ProfileView},
   { path: "/groups", component: GroupsView},
   { path: "/new-group", component: GroupCreateView},
-  { path: "/groups/:uuid", name: "GroupEditView", component: GroupEditView, props: true}
+  { path: "/groups/:uuid", name: "GroupEditView", component: GroupEditView, props: true},
+  { path: "/:pathMatch(.*)*", name: "NotFound", component: NotFoundView }
 ];
 
 const router = createRouter({
   history: createWebHashHistory(),
   routes,
+});
+
+const publicPages = ["/"];
+router.beforeEach((to, from, next) => {
+  const token = localStorage.getItem("token");
+  if (!publicPages.includes(to.path) && !token) {
+    next("/");
+  } else {
+    next();
+  }
 });
 
 export default router;
