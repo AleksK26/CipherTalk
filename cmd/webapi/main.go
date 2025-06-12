@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	"github.com/AleksK26/WASA_AleksK_2024-25/service/api"
@@ -46,6 +47,11 @@ func run() error {
 	logger.Println("initializing database support")
 	logger.Infof("Current working directory: %s", func() string { cwd, _ := os.Getwd(); return cwd }())
 	logger.Infof("Opening SQLite DB at: %s", cfg.DB.Filename)
+	// Ensure the database directory exists before opening the DB
+	if err := os.MkdirAll(filepath.Dir(cfg.DB.Filename), 0755); err != nil {
+		logger.WithError(err).Error("failed to create database directory")
+		return fmt.Errorf("failed to create database directory: %w", err)
+	}
 	dbconn, err := sql.Open("sqlite3", cfg.DB.Filename)
 	if err != nil {
 		logger.WithError(err).Error("error opening SQLite DB")

@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 )
 
 var ErrUserDoesNotExist = errors.New("User does not exist")
@@ -105,6 +107,12 @@ func New(db *sql.DB) (AppDatabase, error) {
 	if db == nil {
 		return nil, errors.New("database is required when building an AppDatabase")
 	}
+	// Ensure the database directory exists
+	dbPath := dbPathFromDSN(db)
+	if dbPath != "" {
+		dir := filepath.Dir(dbPath)
+		_ = os.MkdirAll(dir, 0755)
+	}
 	_, err := db.Exec("PRAGMA foreign_keys = ON")
 	if err != nil {
 		return nil, err
@@ -181,4 +189,12 @@ func New(db *sql.DB) (AppDatabase, error) {
 
 func (db *appdbimpl) Ping() error {
 	return db.c.Ping()
+}
+
+// dbPathFromDSN extracts the file path from the DSN if using SQLite3
+func dbPathFromDSN(db *sql.DB) string {
+	// This is a workaround: in your main.go, you have the path as cfg.DB.Filename
+	// so you should ensure the directory exists there, before calling New().
+	// This function is a placeholder in case you want to extract it from DSN.
+	return ""
 }

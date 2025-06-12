@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/ardanlabs/conf"
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 )
 
 type WebAPIConfiguration struct {
 	Config struct {
-		Path string `conf:"default:demo/config.yml"` //changed the conf:"default:/conf/config.yml to  conf:"default:demo/config.yml
+		Path string `conf:"default:demo/config.yml"`
+		// changed the conf:"default:/conf/config.yml to  conf:"default:demo/config.yml
 	}
 	Web struct {
 		APIHost         string        `conf:"default:0.0.0.0:3000"`
@@ -28,19 +30,31 @@ type WebAPIConfiguration struct {
 	}
 }
 
+func getEnvOrDefault(envKey, fallback string) string {
+	if val := os.Getenv(envKey); val != "" {
+		return val
+	}
+	return fallback
+}
+
 func loadConfiguration() (WebAPIConfiguration, error) {
 	var cfg WebAPIConfiguration
 	if err := conf.Parse(os.Args[1:], "CFG", &cfg); err != nil {
 		if errors.Is(err, conf.ErrHelpWanted) {
 			usage, err := conf.Usage("CFG", &cfg)
 			if err != nil {
+				logger := logrus.New()
+				logger.SetOutput(os.Stdout)
+				logger.Error("generating config usage: ", err)
 				return cfg, fmt.Errorf("generating config usage: %w", err)
 			}
-			fmt.Println(usage)
+			logrus.New().Info(usage)
 			return cfg, conf.ErrHelpWanted
 		}
 		return cfg, fmt.Errorf("parsing config: %w", err)
 	}
+	// Prefer environment variable for config path, else use as-is (relative to cwd)
+	cfg.Config.Path = getEnvOrDefault("CFG_CONFIG_PATH", cfg.Config.Path)
 	fp, err := os.Open(cfg.Config.Path)
 	if err != nil && !os.IsNotExist(err) {
 		return cfg, fmt.Errorf("can't read the config file, while it exists: %w", err)
@@ -55,5 +69,7 @@ func loadConfiguration() (WebAPIConfiguration, error) {
 		}
 		_ = fp.Close()
 	}
+	// Prefer environment variable for DB path, else use as-is (relative to cwd)
+	cfg.DB.Filename = getEnvOrDefault("CFG_DB_FILENAME", cfg.DB.Filename)
 	return cfg, nil
 }

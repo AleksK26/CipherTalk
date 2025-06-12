@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"io/fs"
 	"net/http"
 	"strings"
@@ -21,6 +22,19 @@ func registerWebUI(hdl http.Handler) (http.Handler, error) {
 			http.StripPrefix("/dashboard/", http.FileServer(http.FS(distDirectory))).ServeHTTP(w, r)
 			return
 		}
-		hdl.ServeHTTP(w, r)
+		if strings.HasPrefix(r.RequestURI, "/api/") {
+			hdl.ServeHTTP(w, r)
+			return
+		}
+		// Serve index.html for all other routes (SPA fallback)
+		indexFile, err := distDirectory.Open("index.html")
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("index.html not found"))
+			return
+		}
+		defer indexFile.Close()
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = io.Copy(w, indexFile)
 	}), nil
 }
