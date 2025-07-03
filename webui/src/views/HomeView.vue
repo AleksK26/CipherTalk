@@ -44,6 +44,8 @@
               <span v-if="isForwarded(conv.lastMessage)" v-html="getFormattedMessage(conv.lastMessage)"></span>
               <span v-else>{{ getFormattedMessage(conv.lastMessage) }}</span>
               <span class="last-message-time">at {{ new Date(conv.lastMessage.timestamp).toLocaleString() }}</span>
+              
+              <span v-if="conv.lastMessage.recipientId === userId && (conv.lastMessage.isRead || conv.lastMessage.isDelivered)" class="checkmark" title="Delivered/Read">✓</span>
             </p>
             <p v-else class="no-messages">No messages yet.</p>
           </div>
@@ -65,6 +67,7 @@ export default {
     localStorage.removeItem("recipientId");
     return {
       username: "",
+      userId: localStorage.getItem("userId") || "",
       errormsg: null,
       loading: false,
       conversations: [],
@@ -224,6 +227,12 @@ export default {
   object-fit: cover;
   border-radius: 3px;
   flex-shrink: 0;
+}
+
+.checkmark {
+  color: #2c8b47;
+  font-size: 1.2em;
+  margin-left: 4px;
 }
 
 @media (max-width: 600px) {
