@@ -54,6 +54,8 @@ type Message struct {
 	ReplyContent      string   `json:"replyContent,omitempty"`
 	ReplySenderName   string   `json:"replySenderName,omitempty"`
 	ReplyAttachment   []byte   `json:"replyAttachment,omitempty"`
+	IsDelivered       bool     `json:"isDelivered"`
+	IsRead            bool     `json:"isRead"`
 }
 
 type Comment struct {

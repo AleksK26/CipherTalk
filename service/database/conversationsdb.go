@@ -16,9 +16,9 @@ func (db *appdbimpl) GetDirectConversation(senderID, recipientID string) (string
 		FROM conversations
 		WHERE type = 'direct'
 		  AND id IN (
-		      SELECT conversationId FROM conversation_members WHERE userId = ?
-		      INTERSECT
-		      SELECT conversationId FROM conversation_members WHERE userId = ?
+			  SELECT conversationId FROM conversation_members WHERE userId = ?
+			  INTERSECT
+			  SELECT conversationId FROM conversation_members WHERE userId = ?
 		  )
 	`, senderID, recipientID).Scan(&conversationID)
 	if err == sql.ErrNoRows {
@@ -62,9 +62,9 @@ func (db *appdbimpl) SaveMessage(
 	}
 	timestamp := time.Now().Format(time.RFC3339)
 	_, err = db.c.Exec(`
-        INSERT INTO messages (id, conversationId, senderId, content, timestamp, attachment, replyTo)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    `, messageID, conversationID, senderID, content, timestamp, attachment, replyTo)
+		INSERT INTO messages (id, conversationId, senderId, content, timestamp, attachment, replyTo)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, messageID, conversationID, senderID, content, timestamp, attachment, replyTo)
 	if err != nil {
 		return Message{}, fmt.Errorf("error saving message: %w", err)
 	}
@@ -192,22 +192,22 @@ func (db *appdbimpl) GetConversationDetails(conversationID, currentUserID string
 func (db *appdbimpl) GetMessagesForConversation(conversationID string) ([]Message, error) {
 	query := `
 SELECT 
-    m.id, 
-    m.conversationId, 
-    m.senderId, 
-    m.content, 
-    m.timestamp, 
-    m.attachment,
-    m.replyTo,
-    u.name AS senderName,
-    u.photo AS senderPhoto,
-    ((SELECT COUNT(*) FROM conversation_members WHERE conversationId = m.conversationId) - 1) AS totalRecipients,
-    (SELECT COUNT(*) FROM read_receipts WHERE messageId = m.id AND readAt IS NOT NULL) AS readCount,
-    COUNT(c.id) AS reaction_count,
-    GROUP_CONCAT(DISTINCT u2.name) AS reacting_user_names,
-    IFNULL(r.content, '') AS replyContent,
-    IFNULL(ru.name, '') AS replySenderName,
-    r.attachment AS replyAttachment
+	m.id, 
+	m.conversationId, 
+	m.senderId, 
+	m.content, 
+	m.timestamp, 
+	m.attachment,
+	m.replyTo,
+	u.name AS senderName,
+	u.photo AS senderPhoto,
+	((SELECT COUNT(*) FROM conversation_members WHERE conversationId = m.conversationId) - 1) AS totalRecipients,
+	(SELECT COUNT(*) FROM read_receipts WHERE messageId = m.id AND readAt IS NOT NULL) AS readCount,
+	COUNT(c.id) AS reaction_count,
+	GROUP_CONCAT(DISTINCT u2.name) AS reacting_user_names,
+	IFNULL(r.content, '') AS replyContent,
+	IFNULL(ru.name, '') AS replySenderName,
+	r.attachment AS replyAttachment
 FROM messages m
 JOIN users u ON m.senderId = u.id
 LEFT JOIN comments c ON m.id = c.messageId
@@ -259,10 +259,34 @@ ORDER BY m.timestamp ASC;
 		} else {
 			msg.ReactingUserNames = []string{}
 		}
+		// Set status string for legacy compatibility
 		if totalRecipients > 0 && readCount >= totalRecipients {
 			msg.Status = "✓✓"
 		} else {
 			msg.Status = "✓"
+		}
+		// Set isDelivered and isRead booleans (exclude sender from receipts)
+		// For direct: delivered/read if recipient has deliveredAt/readAt
+		// For group: delivered if at least one recipient (not sender) has deliveredAt, read if all recipients (not sender) have readAt
+		var deliveredCount, readCountExSender, recipientCount int
+		// Count recipients (not sender)
+		err = db.c.QueryRow(`SELECT COUNT(*) FROM conversation_members WHERE conversationId = ? AND userId != ?`, msg.ConversationId, msg.SenderId).Scan(&recipientCount)
+		if err != nil {
+			recipientCount = 0
+		}
+		// Delivered: at least one recipient (not sender) has deliveredAt
+		err = db.c.QueryRow(`SELECT COUNT(*) FROM read_receipts WHERE messageId = ? AND userId != ? AND deliveredAt IS NOT NULL`, msg.Id, msg.SenderId).Scan(&deliveredCount)
+		if err != nil {
+			msg.IsDelivered = false
+		} else {
+			msg.IsDelivered = deliveredCount > 0
+		}
+		// Read: all recipients (not sender) have readAt
+		err = db.c.QueryRow(`SELECT COUNT(*) FROM read_receipts WHERE messageId = ? AND userId != ? AND readAt IS NOT NULL`, msg.Id, msg.SenderId).Scan(&readCountExSender)
+		if err != nil {
+			msg.IsRead = false
+		} else {
+			msg.IsRead = recipientCount > 0 && readCountExSender == recipientCount
 		}
 		messages = append(messages, msg)
 	}
@@ -310,7 +334,7 @@ func (db *appdbimpl) GetMyConversations(userID string) ([]Conversation, error) {
 	JOIN conversation_members cm ON c.id = cm.conversationId
 	WHERE cm.userId = ?
 	ORDER BY last_message_timestamp DESC NULLS LAST;
-    `
+	`
 	rows, err := db.c.Query(query, userID, userID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching conversations: %w", err)
@@ -397,23 +421,23 @@ func (db *appdbimpl) DeleteMessage(conversationID, messageID, userID string) err
 func (db *appdbimpl) GetMessage(messageID, userID string) (Message, error) {
 	var message Message
 	err := db.c.QueryRow(`
-        SELECT 
-            m.id, 
-            m.conversationId, 
-            m.senderId, 
-            m.content, 
-            m.timestamp, 
-            m.attachment,
-            u.name AS senderName
-        FROM 
-            messages m
-        JOIN 
-            users u ON m.senderId = u.id
-        JOIN 
-            conversation_members cm ON m.conversationId = cm.conversationId
-        WHERE 
-            m.id = ? AND cm.userId = ?
-    `, messageID, userID).Scan(
+		SELECT 
+			m.id, 
+			m.conversationId, 
+			m.senderId, 
+			m.content, 
+			m.timestamp, 
+			m.attachment,
+			u.name AS senderName
+		FROM 
+			messages m
+		JOIN 
+			users u ON m.senderId = u.id
+		JOIN 
+			conversation_members cm ON m.conversationId = cm.conversationId
+		WHERE 
+			m.id = ? AND cm.userId = ?
+	`, messageID, userID).Scan(
 		&message.Id,
 		&message.ConversationId,
 		&message.SenderId,
@@ -433,11 +457,11 @@ func (db *appdbimpl) GetMessage(messageID, userID string) (Message, error) {
 
 func (db *appdbimpl) MarkMessagesAsRead(conversationID, userID string) error {
 	_, err := db.c.Exec(`
-        UPDATE read_receipts
-        SET readAt = CURRENT_TIMESTAMP
-        WHERE messageId IN (SELECT id FROM messages WHERE conversationId = ?)
-          AND userId = ?
-          AND readAt IS NULL
-    `, conversationID, userID)
+		UPDATE read_receipts
+		SET readAt = CURRENT_TIMESTAMP
+		WHERE messageId IN (SELECT id FROM messages WHERE conversationId = ?)
+		  AND userId = ?
+		  AND readAt IS NULL
+	`, conversationID, userID)
 	return err
 }

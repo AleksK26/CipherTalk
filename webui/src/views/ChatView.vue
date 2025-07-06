@@ -99,8 +99,11 @@
             </div>
           </div>
         </div>
-        <div class="message-status" v-if="message.status && message.senderId !== userToken">
-          {{ message.status }}
+
+        <div v-if="message.senderId === userToken" class="message-status">
+          <span v-if="message.isRead" class="checkmark read" title="Read">✓✓</span>
+          <span v-else-if="message.isDelivered" class="checkmark delivered" title="Delivered">✓✓</span>
+          <span v-else class="checkmark" title="Sent">✓</span>
         </div>
       </div>
     </div>
@@ -149,6 +152,9 @@ export default {
   computed: {
     userName() {
       return localStorage.getItem("name");
+    },
+    userId() {
+      return localStorage.getItem("userId");
     }
   },
   methods: {
@@ -641,6 +647,19 @@ export default {
 }
 .send-button:hover {
   background-color: #0f7c6a;
+}
+.checkmark {
+  color: #2c8b47; /* green for sent */
+  font-size: 1.2em;
+  margin-left: 4px;
+}
+.checkmark.delivered {
+  color: #2c8b47; /* green for delivered */
+  font-weight: bold;
+}
+.checkmark.read {
+  color: #2196f3; /* blue for read */
+  font-weight: bold;
 }
 @media (max-width: 600px) {
   .conversation-block p {
