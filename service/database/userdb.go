@@ -3,6 +3,7 @@ package database
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 func (db *appdbimpl) CreateUser(u User) (User, error) {
@@ -41,18 +42,38 @@ func (db *appdbimpl) GetUserById(id string) (User, error) {
 	return u, nil
 }
 
-func (db *appdbimpl) UpdateUserName(userId, newName string) (User, error) {
-	res, err := db.c.Exec(`UPDATE users SET name=? WHERE id=?`, newName, userId)
+// Old error handler for UpdatingUserName with the same username
+// func (db *appdbimpl) UpdateUserName(userId, newName string) (User, error) {
+// 	res, err := db.c.Exec(`UPDATE users SET name=? WHERE id=?`, newName, userId)
+// 	if err != nil {
+// 		return User{}, err
+// 	}
+// 	affected, err := res.RowsAffected()
+// 	if err != nil {
+// 		return User{}, err
+// 	} else if affected == 0 {
+// 		return User{}, ErrUserDoesNotExist
+// 	}
+// 	return db.GetUserById(userId)
+// }
+
+func (db *appdbimpl) UpdateUserName(userId string, newName string) (User, error) {
+	_, err := db.c.Exec("UPDATE users SET name = ? WHERE id = ?", newName, userId)
 	if err != nil {
-		return User{}, err
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return User{}, fmt.Errorf("username %s already exists", newName)
+		}
+		return User{}, fmt.Errorf("error updating username: %w", err)
 	}
-	affected, err := res.RowsAffected()
+
+	// Fetch and return the updated user
+	var user User
+	err = db.c.QueryRow("SELECT id, name, photo FROM users WHERE id = ?", userId).Scan(&user.Id, &user.Name, &user.Photo)
 	if err != nil {
-		return User{}, err
-	} else if affected == 0 {
-		return User{}, ErrUserDoesNotExist
+		return User{}, fmt.Errorf("error fetching updated user: %w", err)
 	}
-	return db.GetUserById(userId)
+
+	return user, nil
 }
 
 func (db *appdbimpl) UpdateUserPhoto(userID string, photo []byte) error {

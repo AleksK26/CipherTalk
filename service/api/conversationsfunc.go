@@ -1,8 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"image"
+	"image/png"
 	"io"
 	"net/http"
 	"time"
@@ -186,6 +189,28 @@ func (rt *_router) sendMessage(
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(message); err != nil {
 		ctx.Logger.WithError(err).Error("Failed to encode response")
+	}
+	// Handle image attachment
+	if attachment != nil {
+		// Preserve the original image dimensions
+		img, _, err := image.Decode(bytes.NewReader(attachment))
+		if err != nil {
+			ctx.Logger.WithError(err).Error("Failed to process image")
+			http.Error(w, "Invalid image format", http.StatusBadRequest)
+			return
+		}
+
+		// Convert to proper fomat without crop
+		var buf bytes.Buffer
+		if err := png.Encode(&buf, img); err != nil {
+			ctx.Logger.WithError(err).Error("Failed to encode image")
+			http.Error(w, "Failed to process image", http.StatusInternalServerError)
+			return
+		}
+		attachment = buf.Bytes()
+
+		// Use the processed image
+		message.Attachment = attachment
 	}
 }
 

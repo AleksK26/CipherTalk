@@ -269,7 +269,7 @@ ORDER BY m.timestamp ASC;
 		// For direct: delivered/read if recipient has deliveredAt/readAt
 		// For group: delivered if at least one recipient (not sender) has deliveredAt, read if all recipients (not sender) have readAt
 		var deliveredCount, readCountExSender, recipientCount int
-		// Count recipients (not sender)
+		// Counting only recipient not sender
 		err = db.c.QueryRow(`SELECT COUNT(*) FROM conversation_members WHERE conversationId = ? AND userId != ?`, msg.ConversationId, msg.SenderId).Scan(&recipientCount)
 		if err != nil {
 			recipientCount = 0

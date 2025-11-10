@@ -161,3 +161,34 @@ func (db *appdbimpl) AddUserToGroup(conversationID string, userID string) error 
 	}
 	return nil
 }
+
+func (db *appdbimpl) GetGroupMemberDetails(groupID string) ([]User, error) {
+	query := `
+		SELECT u.id, u.name, u.photo
+		FROM users u
+		JOIN conversation_members cm ON u.id = cm.userId
+		WHERE cm.conversationId = ?
+		ORDER BY u.name
+	`
+
+	rows, err := db.c.Query(query, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching group member details: %w", err)
+
+	}
+	defer rows.Close()
+
+	var members []User
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(&user.Id, &user.Name, &user.Photo); err != nil {
+			return nil, fmt.Errorf("error scanning member details: %w", err)
+		}
+		members = append(members, user)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating member rows: %w", err)
+	}
+	return members, nil
+}

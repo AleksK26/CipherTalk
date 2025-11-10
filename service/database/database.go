@@ -71,6 +71,7 @@ type ReadReceipt struct {
 }
 
 type AppDatabase interface {
+	GetGroupMemberDetails(groupId string) ([]User, error)
 	Ping() error
 	GetUserByName(name string) (User, error)
 	CreateUser(u User) (User, error)
@@ -169,6 +170,7 @@ func New(db *sql.DB) (AppDatabase, error) {
 			FOREIGN KEY (messageId) REFERENCES messages(id) ON DELETE CASCADE,
 			FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
 		);`
+
 		creationQueries := []string{
 			usersTable,
 			conversationsTable,
@@ -183,6 +185,19 @@ func New(db *sql.DB) (AppDatabase, error) {
 				return nil, fmt.Errorf("error creating database structure: %w", execErr)
 			}
 		}
+		// Adding index queries for better performance
+		indexQueries := []string{
+			`CREATE INDEX IF NOT EXISTS idx_conversation_members_user ON conversation_members(userId)`,
+			`CREATE INDEX IF NOT EXISTS idx_conversation_members_cpnv ON conversation_members(conversationId)`,
+		}
+
+		for _, q := range indexQueries {
+			_, err := db.Exec(q)
+			if err != nil {
+				return nil, fmt.Errorf("error creating indexes: %w", err)
+			}
+		}
+
 	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}

@@ -107,11 +107,21 @@ func (rt *_router) getGroup(
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
+
+	// Get full members details
+	memberDetails, err := rt.db.GetGroupMemberDetails(groupID)
+	if err != nil {
+		ctx.Logger.WithError(err).Error("Failed to fetch group member details")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
 	response := map[string]interface{}{
 		"id":      group.Id,
 		"name":    group.Name,
-		"members": group.Members,
+		"members": memberDetails,
 	}
+
 	if group.ConversationPhoto.Valid {
 		response["groupPhoto"] = group.ConversationPhoto.String
 	}
@@ -233,6 +243,21 @@ func (rt *_router) leaveGroup(
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+
+	// Check if user is in group
+	isInGroup, err := rt.db.IsUserInConversation(groupID, userID)
+	if !isInGroup {
+		http.Error(w, "User is not in group", http.StatusBadRequest)
+		return
+	}
+
+	// Check if user is not the last member so he can't leave
+	members, err := rt.db.GetConversationMembers(groupID)
+	if len(members) <= 1 {
+		http.Error(w, "Cannot leave group you are the last member", http.StatusBadRequest)
+		return
+	}
+
 	err = rt.db.LeaveGroup(groupID, userID)
 	if err != nil {
 		ctx.Logger.WithError(err).Error("Failed to leave group")

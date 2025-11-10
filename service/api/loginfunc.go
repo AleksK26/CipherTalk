@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 
 	"github.com/AleksK26/WASA_AleksK_2024-25/service/api/reqcontext"
 	"github.com/AleksK26/WASA_AleksK_2024-25/service/database"
@@ -65,4 +66,19 @@ func (rt *_router) doLogin(w http.ResponseWriter, r *http.Request, ps httprouter
 		ctx.Logger.WithError(err).Error("failed to encode response")
 		return
 	}
+	// if no photo provided use the default one
+	if len(req.Photo) == 0 {
+		defaultPhoto, err := getDefaultProfilePicture()
+		if err != nil {
+			ctx.Logger.WithError(err).Error("Failed to load profile picture")
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		photoBytes = defaultPhoto
+	}
+}
+
+func getDefaultProfilePicture() ([]byte, error) {
+	// Read the default image from assets folder
+	return os.ReadFile("assests/default-profile.png")
 }
