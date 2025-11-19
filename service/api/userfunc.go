@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/AleksK26/WASA_AleksK_2024-25/service/api/reqcontext"
 	"github.com/AleksK26/WASA_AleksK_2024-25/service/database"
@@ -20,33 +21,36 @@ func (rt *_router) setMyUserName(
 	ps httprouter.Params,
 	ctx reqcontext.RequestContext,
 ) {
-	if r.Method != http.MethodPut {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+
+	if len(req.Name) < 3 || len(req.Name) > 16 {
+		http.Error(w, "Invalid username length", http.StatusBadRequest)
+		return
+	}
+
 	userID, err := rt.getAuthenticatedUserID(r)
 	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	var req UpdateUserRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-	if len(req.Name) < 3 || len(req.Name) > 16 {
-		http.Error(w, "Invalid username length", http.StatusBadRequest)
-		return
-	}
+
 	updatedUser, dbErr := rt.db.UpdateUserName(userID, req.Name)
-	if errors.Is(dbErr, database.ErrUserDoesNotExist) {
-		http.Error(w, "User not found", http.StatusNotFound)
-		return
-	} else if dbErr != nil {
+	if dbErr != nil {
+		if strings.Contains(dbErr.Error(), "already exists") {
+			http.Error(w, dbErr.Error(), http.StatusConflict)
+			return
+		}
 		ctx.Logger.WithError(dbErr).Error("failed to update username")
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		http.Error(w, "Failed to update username. Please try again.", http.StatusInternalServerError)
 		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(updatedUser); err != nil {

@@ -5,132 +5,163 @@
         <img :src="'data:image/jpeg;base64,' + conversationPhoto" alt="Chat Thumbnail" />
       </div>
       <h3>{{ convName }}</h3>
+      <button @click="toggleGroupInfo" v-if="conversationType === 'group'" class="info-button">
+        ℹ️ Members
+      </button>
     </div>
-    <div class="chat-messages" ref="chatMessages">
-      <p v-if="messages.length === 0">No messages yet...</p>
-      <div
-        v-for="message in messages"
-        :key="message.id"
-        class="message"
-        :class="message.senderId === userToken ? 'self' : 'other'"
-        :style="message.senderId !== userToken && conversationType === 'group' ? { paddingLeft: '45px' } : {}"
-      >
-        <div v-if="conversationType === 'group' && message.senderId !== userToken" class="sender-thumbnail">
-          <img :src="'data:image/jpeg;base64,' + message.senderPhoto" alt="Sender Photo" />
-        </div>
-        <div class="message-content">
-          <div v-if="message.replyTo" class="reply-preview">
-            <small>Replying to {{ message.replySenderName || 'Unknown' }}: {{ message.replyContent }}</small>
-            <img
-              v-if="message.replyAttachment"
-              :src="'data:image/jpeg;base64,' + message.replyAttachment"
-              alt="Reply Attachment"
-              class="reply-attachment"
-            />
-          </div>
-          <p v-if="message.content.startsWith('<strong>Forwarded')" v-html="message.content"></p>
-          <p v-else>
-            <strong>
-              {{ message.senderId === userToken ? 'You' : (message.senderName || 'Unknown Sender') }}:
-            </strong>
-            {{ message.content }}
-          </p>
-          <div v-if="message.attachment" class="attachment-container">
-            <img :src="'data:image/jpeg;base64,' + message.attachment" alt="Attachment" class="attachment-image" />
-          </div>
-          <small>{{ formatTimestamp(message.timestamp) }}</small>
-          <div v-if="message.reactionCount > 0" class="reaction-count">
-            ❤️ × {{ message.reactionCount }}
-            <div class="reactors-list">
-              <ul>
-                <li v-for="(reactor, idx) in message.reactingUserNames" :key="reactor">
-                  {{ idx + 1 }}. {{ reactor }}
-                </li>
-              </ul>
+
+    <!-- Main chat area with optional sidebar -->
+    <div style="display: flex; flex: 1; overflow: hidden;">
+      <!-- Messages section -->
+      <div style="flex: 1; display: flex; flex-direction: column;">
+        <div class="chat-messages" ref="chatMessages">
+          <p v-if="messages.length === 0">No messages yet...</p>
+          <div
+            v-for="message in messages"
+            :key="message.id"
+            class="message"
+            :class="message.senderId === userToken ? 'self' : 'other'"
+            :style="message.senderId !== userToken && conversationType === 'group' ? { paddingLeft: '45px' } : {}"
+          >
+            <div v-if="conversationType === 'group' && message.senderId !== userToken" class="sender-thumbnail">
+              <img :src="'data:image/jpeg;base64,' + message.senderPhoto" alt="Sender Photo" />
             </div>
-          </div>
-          <div class="action-buttons">
-            <button v-if="message.senderId !== userToken" class="action-button reply-button" @click.stop="setReply(message)">
-              ↩
-            </button>
-            <button
-              v-if="message.senderId !== userToken"
-              class="action-button heart-button"
-              :class="{ 'has-reacted': (message.reactingUserNames || []).includes(userName) }"
-              :disabled="message.reactionLoading"
-              @click.stop="toggleReaction(message)"
-            >
-              ❤️
-            </button>
-            <button class="action-button forward-button" @click.stop="showForwardOptions(message.id)">
-              →
-            </button>
-            <button v-if="message.senderId === userToken" class="action-button delete-button" @click.stop="deleteMessage(message)">
-              ✖
-            </button>
-          </div>
-          <div v-if="messageOptions[message.id]?.showForwardMenu" class="forward-options" @click.stop>
-            <select id="forward-select" class="forward-select" v-model="messageOptions[message.id].selectedConversationId">
-              <option value="" disabled>Select conversation</option>
-              <option v-for="conv in messageOptions[message.id].forwardConversations" :key="conv.id" :value="conv.id">
-                {{ conv.name }}
-              </option>
-              <option value="new">New contact</option>
-            </select>
-            <div v-if="messageOptions[message.id].selectedConversationId === 'new'" class="contact-search">
-              <input type="text" v-model="messageOptions[message.id].contactQuery" placeholder="Enter contact name" @input="searchContact(message.id)" />
-              <ul v-if="messageOptions[message.id].contactResults.length > 0" class="contact-results">
-                <li v-for="contact in messageOptions[message.id].contactResults" :key="contact.id" @click="selectContact(contact, message.id)" class="contact-result">
-                  {{ contact.name }}
-                </li>
-              </ul>
+            <div class="message-content">
+              <div v-if="message.replyTo" class="reply-preview">
+                <small>Replying to {{ message.replySenderName || 'Unknown' }}: {{ message.replyContent }}</small>
+                <img
+                  v-if="message.replyAttachment"
+                  :src="'data:image/jpeg;base64,' + message.replyAttachment"
+                  alt="Reply Attachment"
+                  class="reply-attachment"
+                />
+              </div>
+              <p v-if="message.content.startsWith('<strong>Forwarded')" v-html="message.content"></p>
+              <p v-else>
+                <strong>
+                  {{ message.senderId === userToken ? 'You' : (message.senderName || 'Unknown Sender') }}:
+                </strong>
+                {{ message.content }}
+              </p>
+              <div v-if="message.attachment" class="attachment-container">
+                <img :src="'data:image/jpeg;base64,' + message.attachment" alt="Attachment" class="attachment-image" />
+              </div>
+              <small>{{ formatTimestamp(message.timestamp) }}</small>
+              <div v-if="message.reactionCount > 0" class="reaction-count">
+                ❤️ × {{ message.reactionCount }}
+                <div class="reactors-list">
+                  <ul>
+                    <li v-for="(reactor, idx) in message.reactingUserNames" :key="reactor">
+                      {{ idx + 1 }}. {{ reactor }}
+                    </li>
+                  </ul>
+                </div>
+              </div>
+              <div class="action-buttons">
+                <button v-if="message.senderId !== userToken" class="action-button reply-button" @click.stop="setReply(message)">
+                  ↩
+                </button>
+                <button
+                  v-if="message.senderId !== userToken"
+                  class="action-button heart-button"
+                  :class="{ 'has-reacted': (message.reactingUserNames || []).includes(userName) }"
+                  :disabled="message.reactionLoading"
+                  @click.stop="toggleReaction(message)"
+                >
+                  ❤️
+                </button>
+                <button class="action-button forward-button" @click.stop="showForwardOptions(message.id)">
+                  →
+                </button>
+                <button v-if="message.senderId === userToken" class="action-button delete-button" @click.stop="deleteMessage(message)">
+                  ✖
+                </button>
+              </div>
+              <div v-if="messageOptions[message.id]?.showForwardMenu" class="forward-options" @click.stop>
+                <select id="forward-select" class="forward-select" v-model="messageOptions[message.id].selectedConversationId">
+                  <option value="" disabled>Select conversation</option>
+                  <option v-for="conv in messageOptions[message.id].forwardConversations" :key="conv.id" :value="conv.id">
+                    {{ conv.name }}
+                  </option>
+                  <option value="new">New contact</option>
+                </select>
+                <div v-if="messageOptions[message.id].selectedConversationId === 'new'" class="contact-search">
+                  <input type="text" v-model="messageOptions[message.id].contactQuery" placeholder="Enter contact name" @input="searchContact(message.id)" />
+                  <ul v-if="messageOptions[message.id].contactResults.length > 0" class="contact-results">
+                    <li v-for="contact in messageOptions[message.id].contactResults" :key="contact.id" @click="selectContact(contact, message.id)" class="contact-result">
+                      {{ contact.name }}
+                    </li>
+                  </ul>
+                </div>
+                <div class="forward-buttons-container">
+                  <button class="button-style" v-if="messageOptions[message.id].selectedConversationId !== 'new'" :disabled="!messageOptions[message.id].selectedConversationId" @click.stop="forwardMessage(messageOptions[message.id].selectedConversationId, message.id)">
+                    Send
+                  </button>
+                  <button class="button-style" v-if="messageOptions[message.id].selectedConversationId === 'new'" :disabled="!messageOptions[message.id].selectedContactId" @click.stop="forwardToContact(messageOptions[message.id].selectedContactId, message.id)">
+                    Send
+                  </button>
+                  <button class="button-style" @click.stop="closeForwardMenu(message.id)">Cancel</button>
+                </div>
+                <div v-if="messageOptions[message.id].forwardConversations.length === 0">
+                  No conversation found.
+                </div>
+              </div>
             </div>
-            <div class="forward-buttons-container">
-              <button class="button-style" v-if="messageOptions[message.id].selectedConversationId !== 'new'" :disabled="!messageOptions[message.id].selectedConversationId" @click.stop="forwardMessage(messageOptions[message.id].selectedConversationId, message.id)">
-                Send
-              </button>
-              <button class="button-style" v-if="messageOptions[message.id].selectedConversationId === 'new'" :disabled="!messageOptions[message.id].selectedContactId" @click.stop="forwardToContact(messageOptions[message.id].selectedContactId, message.id)">
-                Send
-              </button>
-              <button class="button-style" @click.stop="closeForwardMenu(message.id)">Cancel</button>
-            </div>
-            <div v-if="messageOptions[message.id].forwardConversations.length === 0">
-              No conversation found.
+
+            <div v-if="message.senderId === userToken" class="message-status">
+              <span v-if="message.isRead" class="checkmark read" title="Read">✓✓</span>
+              <span v-else-if="message.isDelivered" class="checkmark delivered" title="Delivered">✓✓</span>
+              <span v-else class="checkmark" title="Sent">✓</span>
             </div>
           </div>
         </div>
 
-        <div v-if="message.senderId === userToken" class="message-status">
-          <span v-if="message.isRead" class="checkmark read" title="Read">✓✓</span>
-          <span v-else-if="message.isDelivered" class="checkmark delivered" title="Delivered">✓✓</span>
-          <span v-else class="checkmark" title="Sent">✓</span>
+        <div v-if="replyToMessage" class="reply-preview-box">
+          <div class="reply-info">
+            <strong>Replying to {{ replyToMessage.senderName || 'Unknown' }}:</strong>
+            <span class="reply-text">{{ replyToMessage.content }}</span>
+            <img v-if="replyToMessage.attachment" :src="'data:image/jpeg;base64,' + replyToMessage.attachment" alt="Reply Attachment" class="reply-attachment-preview" />
+          </div>
+          <button class="cancel-reply-button" @click="cancelReply">✖</button>
+        </div>
+
+        <div class="chat-input">
+          <input type="file" ref="fileInput" style="display: none" accept="image/*, .gif" @change="handleFileSelect" />
+          <button class="attach-button" @click="triggerFileInput">
+            Attach Image or GIF
+            <span v-if="selectedFile" class="file-icon">🖼️</span>
+          </button>
+          <input v-model="message" class="message-input" type="text" placeholder="Type a message..." @input="toggleSendButton" />
+          <button v-if="message.trim() || selectedFile" class="send-button" @click="sendMessage">
+            Send
+          </button>
         </div>
       </div>
-    </div>
-    <div v-if="replyToMessage" class="reply-preview-box">
-      <div class="reply-info">
-        <strong>Replying to {{ replyToMessage.senderName || 'Unknown' }}:</strong>
-        <span class="reply-text">{{ replyToMessage.content }}</span>
-        <img v-if="replyToMessage.attachment" :src="'data:image/jpeg;base64,' + replyToMessage.attachment" alt="Reply Attachment" class="reply-attachment-preview" />
+
+      <!-- Group Info Sidebar -->
+      <div v-if="showGroupInfo && conversationType === 'group'" class="group-info-sidebar">
+        <h3>Group Members ({{ groupMembers.length }})</h3>
+        <ul class="members-list">
+          <li v-for="member in groupMembers" :key="member.id" class="member-item">
+            <img 
+              :src="member.photo ? `data:image/jpeg;base64,${member.photo}` : defaultUserPhoto" 
+              alt="Member Photo" 
+              class="member-photo"
+            />
+            <span>{{ member.name }}</span>
+          </li>
+        </ul>
+        
+        <button @click="leaveGroup" class="leave-group-btn">Leave Group</button>
+        <ErrorMsg v-if="errormsg" :msg="errormsg" />
       </div>
-      <button class="cancel-reply-button" @click="cancelReply">✖</button>
-    </div>
-    <div class="chat-input">
-      <input type="file" ref="fileInput" style="display: none" accept="image/*, .gif" @change="handleFileSelect" />
-      <button class="attach-button" @click="triggerFileInput">
-        Attach Image or GIF
-        <span v-if="selectedFile" class="file-icon">🖼️</span>
-      </button>
-      <input v-model="message" class="message-input" type="text" placeholder="Type a message..." @input="toggleSendButton" />
-      <button v-if="message.trim() || selectedFile" class="send-button" @click="sendMessage">
-        Send
-      </button>
     </div>
   </div>
 </template>
 
 <script>
 import axios from "../services/axios";
+
 export default {
   name: "ChatView",
   data() {
@@ -146,7 +177,11 @@ export default {
       selectedFile: null,
       pollIntervalId: null,
       firstLoad: true,
-      replyToMessage: null
+      replyToMessage: null,
+      showGroupInfo: false,
+      groupMembers: [],
+      errormsg: null,
+      defaultUserPhoto: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=="
     };
   },
   computed: {
@@ -213,12 +248,47 @@ export default {
         this.conversationPhoto = null;
       }
       this.conversationType = response.data.type || "direct";
+      
+      // Fetch group members if it's a group
+      if (this.conversationType === "group") {
+        await this.fetchGroupMembers();
+      }
+      
       this.$nextTick(() => {
         if (this.firstLoad) {
           this.forceScrollToBottom();
           this.firstLoad = false;
         }
       });
+    },
+    async fetchGroupMembers() {
+      try {
+        const token = localStorage.getItem("token");
+        const response = await axios.get(`/conversations/${this.conversationId}/members`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        this.groupMembers = response.data || [];
+        console.log("Group members:", this.groupMembers);
+      } catch (error) {
+        console.error("Failed to load group members:", error);
+      }
+    },
+    toggleGroupInfo() {
+      this.showGroupInfo = !this.showGroupInfo;
+    },
+    async leaveGroup() {
+      if (confirm("Are you sure you want to leave this group?")) {
+        try {
+          const token = localStorage.getItem("token");
+          await axios.delete(`/conversations/${this.conversationId}/members/me`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          this.$router.push("/conversations");
+          this.$toast.success("You left the group");
+        } catch (error) {
+          this.errormsg = error.response?.data?.message || "Failed to leave group";
+        }
+      }
     },
     forceScrollToBottom() {
       const chat = this.$refs.chatMessages;
@@ -661,6 +731,66 @@ export default {
   color: #2196f3; /* blue for read */
   font-weight: bold;
 }
+
+.info-button {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.info-button:hover {
+  background-color: #0056b3;
+}
+
+.group-info-sidebar {
+  width: 300px;
+  border-left: 1px solid #dee2e6;
+  padding: 15px;
+  overflow-y: auto;
+  background-color: #f8f9fa;
+}
+
+.members-list {
+  list-style: none;
+  padding: 0;
+  margin: 15px 0;
+}
+
+.member-item {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+}
+
+.member-photo {
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  margin-right: 10px;
+  object-fit: cover;
+}
+
+.leave-group-btn {
+  width: 100%;
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  padding: 10px;
+  border-radius: 5px;
+  margin-top: 15px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.leave-group-btn:hover {
+  background-color: #c82333;
+}
+
 @media (max-width: 600px) {
   .conversation-block p {
     -webkit-line-clamp: 3;

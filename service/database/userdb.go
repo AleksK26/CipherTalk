@@ -58,7 +58,20 @@ func (db *appdbimpl) GetUserById(id string) (User, error) {
 // }
 
 func (db *appdbimpl) UpdateUserName(userId string, newName string) (User, error) {
-	_, err := db.c.Exec("UPDATE users SET name = ? WHERE id = ?", newName, userId)
+	// First, get the current user to check if they're trying to use the same name
+	var currentName string
+	err := db.c.QueryRow("SELECT name FROM users WHERE id = ?", userId).Scan(&currentName)
+	if err != nil {
+		return User{}, fmt.Errorf("error fetching current user: %w", err)
+	}
+
+	// If they're using the same name, just return the user without updating
+	if currentName == newName {
+		return db.GetUserById(userId)
+	}
+
+	// If new name is different, update it
+	_, err = db.c.Exec("UPDATE users SET name = ? WHERE id = ?", newName, userId)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
 			return User{}, fmt.Errorf("username %s already exists", newName)

@@ -246,6 +246,11 @@ func (rt *_router) leaveGroup(
 
 	// Check if user is in group
 	isInGroup, err := rt.db.IsUserInConversation(groupID, userID)
+	if err != nil {
+		ctx.Logger.WithError(err).Error("Failed to check group membership")
+		http.Error(w, "User is not in group", http.StatusBadRequest)
+		return
+	}
 	if !isInGroup {
 		http.Error(w, "User is not in group", http.StatusBadRequest)
 		return
@@ -253,6 +258,11 @@ func (rt *_router) leaveGroup(
 
 	// Check if user is not the last member so he can't leave
 	members, err := rt.db.GetConversationMembers(groupID)
+	if err != nil {
+		ctx.Logger.WithError(err).Error("Failed to fetch group members")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
 	if len(members) <= 1 {
 		http.Error(w, "Cannot leave group you are the last member", http.StatusBadRequest)
 		return

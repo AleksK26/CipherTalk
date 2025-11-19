@@ -465,3 +465,30 @@ func (db *appdbimpl) MarkMessagesAsRead(conversationID, userID string) error {
 	`, conversationID, userID)
 	return err
 }
+
+func (db *appdbimpl) GetConversationById(conversationID string) (Conversation, error) {
+	var conv Conversation
+
+	query := `
+        SELECT id, name, type, created_at, conversationPhoto
+        FROM conversations
+        WHERE id = ?
+    `
+
+	err := db.c.QueryRow(query, conversationID).Scan(
+		&conv.Id,
+		&conv.Name,
+		&conv.Type,
+		&conv.CreatedAt,
+		&conv.ConversationPhoto,
+	)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return Conversation{}, ErrConversationDoesNotExist
+		}
+		return Conversation{}, fmt.Errorf("error fetching conversation: %w", err)
+	}
+
+	return conv, nil
+}

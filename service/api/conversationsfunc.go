@@ -346,3 +346,73 @@ func (rt *_router) forwardMessage(
 	}
 	w.WriteHeader(http.StatusOK)
 }
+
+func (rt *_router) getConversationMembers(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx reqcontext.RequestContext) {
+	conversationID := ps.ByName("conversationId")
+	userID, err := rt.getAuthenticatedUserID(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Check if user is in conversation
+	isInConv, err := rt.db.IsUserInConversation(conversationID, userID)
+	if !isInConv {
+		ctx.Logger.WithError(err).Error("Failed to check conversation membership")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if !isInConv {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	members, err := rt.db.GetGroupMemberDetails(conversationID)
+	if err != nil {
+		ctx.Logger.WithError(err).Error("Failed to fetch members")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(members); err != nil {
+		ctx.Logger.WithError(err).Error("Failed to encode members response")
+	}
+}
+
+func (rt *_router) leaveConversation(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx reqcontext.RequestContext) {
+	conversationID := ps.ByName("conversationId")
+	userID, err := rt.getAuthenticatedUserID(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// Check if user is in conversation
+	isInConv, err := rt.db.IsUserInConversation(conversationID, userID)
+	if !isInConv {
+		ctx.Logger.WithError(err).Error("Failed to check conversation membership")
+		http.Error(w, "Forbidden: Not in conversation", http.StatusForbidden)
+		return
+	}
+
+	// For groups, check if user is the last member
+	conversation, err := rt.db.GetConversationById(conversationID)
+	if err == nil && conversation.Type == "group" {
+		members, err := rt.db.GetConversationMembers(conversationID)
+		if err == nil && len(members) <= 1 {
+			http.Error(w, "Cannot leave group: you are the last member", http.StatusBadRequest)
+			return
+		}
+	}
+
+	// Remove user from conversation
+	err = rt.db.LeaveGroup(conversationID, userID)
+	if err != nil {
+		ctx.Logger.WithError(err).Error("Failed to leave conversation")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}

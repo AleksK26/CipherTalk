@@ -100,6 +100,7 @@ type AppDatabase interface {
 	CommentMessage(commentID, messageID, authorID string) error
 	UncommentMessage(messageID, authorID string) error
 	MarkMessagesAsRead(conversationID, userID string) error
+	GetConversationById(conversationID string) (Conversation, error)
 }
 
 type appdbimpl struct {

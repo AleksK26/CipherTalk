@@ -8,6 +8,7 @@ import GroupsView from "../views/GroupsView.vue"
 import GroupCreateView from "../views/GroupCreateView.vue"
 import GroupEditView from "../views/GroupEditView.vue"
 import NotFoundView from "../views/NotFoundView.vue";
+import GroupView from "../views/GroupView.vue";
 
 const routes = [
   { path: "/", component: LoginView },
@@ -18,7 +19,8 @@ const routes = [
   { path: "/groups", component: GroupsView},
   { path: "/new-group", component: GroupCreateView},
   { path: "/groups/:uuid", name: "GroupEditView", component: GroupEditView, props: true},
-  { path: "/:pathMatch(.*)*", name: "NotFound", component: NotFoundView }
+  { path: "/:pathMatch(.*)*", name: "NotFound", component: NotFoundView },
+  { path: "/group/:groupId", name: "Group", component: GroupView, meta: { requiredAuth: true } }
 ];
 
 const router = createRouter({

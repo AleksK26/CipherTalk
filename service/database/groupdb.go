@@ -192,3 +192,59 @@ func (db *appdbimpl) GetGroupMemberDetails(groupID string) ([]User, error) {
 	}
 	return members, nil
 }
+
+func (db *appdbimpl) AddGroupMember(groupID string, newMemberID string) error {
+	// Check if user is already in group
+	var exists bool
+	err := db.c.QueryRow(`
+		SELECT EXISTS(
+			SELECT 1 FROM cconversation_members
+			WHERE conversationId = ? AND userId = ?
+		)
+	`, groupID, newMemberID).Scan(&exists)
+
+	if err != nil {
+		return fmt.Errorf("error checking member existence: %w", err)
+	}
+
+	if exists {
+		return fmt.Errorf("user is already a member of this group")
+	}
+
+	// Add new member
+	_, err = db.c.Exec(`
+		INSERT INTO conversation_members (conversationId, userId)
+		VALUES (?, ?)
+	`, groupID, newMemberID)
+
+	if err != nil {
+		return fmt.Errorf("error in adding member to group: %w", err)
+	}
+
+	return nil
+}
+
+func (db *appdbimpl) UpdateGroupInfo(groupID string, name string, photo []byte) error {
+	query := `
+		UPDATE conversations
+		SET name = COALESCE(NULLIF(?, ''), name),
+			conversationPhoto = COALESCE(NULLIF(?, ''), conversationPhoto)
+		WHERE id = ? AND type = 'group'
+	`
+
+	result, err := db.c.Exec(query, name, photo, groupID)
+	if err != nil {
+		return fmt.Errorf("error updating group info: %w", err)
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("error checking update result: %w", err)
+	}
+
+	if rows == 0 {
+		return ErrGroupDoesNotExist
+	}
+
+	return nil
+}

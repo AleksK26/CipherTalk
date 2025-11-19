@@ -1,7 +1,7 @@
 <template>
   <div>
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-      <h1 class="h2">{{ username }}, here are your conversations</h1>
+      <h1 class="h2">{{ currentUsername }}, here are your conversations</h1>
       <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
           <button type="button" class="btn btn-sm btn-outline-secondary" @click="refresh">Refresh</button>
@@ -64,7 +64,7 @@ export default {
   data() {
     localStorage.removeItem("recipientId");
     return {
-      username: "",
+      currentUsername: localStorage.getItem("name") || "",
       userId: localStorage.getItem("userId") || "",
       errormsg: null,
       loading: false,
@@ -135,11 +135,16 @@ export default {
     },
   },
   mounted() {
-    this.username = localStorage.getItem("name") || "Guest";
+    this.$root.$on("usernameUpdated", (newUsername) => {
+      this.currentUsername = newUsername;
+    });
     this.loadConversations();
     this.pollIntervalId = setInterval(() => {
       this.loadConversations();
     }, 1000);
+  },
+  beforeUnmount() {
+    this.$root.$off("usernameUpdated");
   },
   unmounted() {
     clearInterval(this.pollIntervalId);

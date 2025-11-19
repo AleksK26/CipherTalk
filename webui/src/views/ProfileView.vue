@@ -60,11 +60,11 @@ export default {
   },
   data() {
     return {
-      userName: "", 
-      userPhoto: null, 
-      newUserName: "", 
-      newPhoto: null, 
-      errormsg: null, 
+      userName: localStorage.getItem("name") || "",
+      newUserName: "",
+      errormsg: "",
+      userId: localStorage.getItem("userId"),
+      token: localStorage.getItem("token")
     };
   },
   methods: {
@@ -114,26 +114,55 @@ export default {
       }
     },
     async updateUsername() {
-      if (!this.newUserName || this.newUserName === this.userName) return;
+      if (!this.newUserName || this.newUserName === this.userName) {
+        this.errormsg = "Please enter a different username";
+        return;
+      }
+
       try {
-        const token = localStorage.getItem("token");
         const response = await axios.put(
           "/users/name",
           { name: this.newUserName },
           {
             headers: {
-              Authorization: `Bearer ${token}`,
-            },
+              Authorization: `Bearer ${this.token}`
+            }
           }
         );
-        alert("Username updated successfully!");
-        localStorage.setItem("name", this.newUserName);
+
+        // Check for specific error message
+        if (!response.ok) {
+          const error = await response.json();
+          this.errormsg = error.message; // will show "username already exists" msg
+          return;
+        }
+
+        // Update local storage with new username
+        localStorage.setItem("name", response.data.name);
         this.userName = response.data.name;
-        this.newUserName = response.data.name;
+        this.newUserName = "";
+        this.errormsg = "";
+
+        // Emit event to update header/navbar display
+        this.$root.$emit("usernameUpdated", response.data.name);
+        
+        // Show success message
+        this.$toast.success("Username updated successfully!");
+        
+        // Emit event to update parent/header components
+        this.$root.$emit("usernameUpdated", response.data.name);
       } catch (error) {
-        console.error("Failed to update username:", error);
-        this.errormsg = "Failed to update username. Please try again.";
+        console.error("Error updating username:", error);
+        
+        if (error.response?.data?.message) {
+          this.errormsg = error.response.data.message;
+        } else if (error.response?.status === 409) {
+          this.errormsg = "Username already exists. Please choose another.";
+        } else {
+          this.errormsg = "Failed to update username. Please try again.";
+        }
       }
+        
     },
     refresh() {
       this.fetchUserProfile();
