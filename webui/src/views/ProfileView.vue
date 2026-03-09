@@ -247,8 +247,11 @@ export default {
 .file-selected { font-size: 13px; color: #718096; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 @media (max-width: 480px) {
+  .page { padding: 20px 12px; }
   .profile-card { padding: 20px; }
   .input-row { flex-direction: column; }
   .save-btn { width: 100%; }
+  .identity-row { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .page-title { font-size: 22px; }
 }
 </style>

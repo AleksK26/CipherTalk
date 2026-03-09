@@ -145,7 +145,7 @@ export default {
 .header-title { font-size: 28px; font-weight: 700; color: #1a1f36; margin: 0 0 2px; }
 .header-sub { font-size: 14px; color: #718096; margin: 0; }
 
-.header-actions { display: flex; align-items: center; gap: 8px; }
+.header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .action-btn {
   padding: 8px 14px;
   border-radius: 8px;
@@ -225,4 +225,12 @@ export default {
 .conv-preview { font-size: 13px; color: #718096; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .no-msg { color: #cbd5e0; font-style: italic; }
 .attach-hint { }
+
+@media (max-width: 480px) {
+  .home { padding: 20px 12px; }
+  .home-header { flex-direction: column; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+  .header-title { font-size: 22px; }
+  .header-actions { width: 100%; justify-content: flex-start; }
+  .action-btn { font-size: 13px; padding: 7px 12px; }
+}
 </style>

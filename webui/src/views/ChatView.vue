@@ -916,25 +916,62 @@ export default {
     position: fixed;
     top: 0; bottom: 68px;
     right: 0;
-    width: 100%;
+    width: 85%;
     max-width: 320px;
     box-shadow: -4px 0 20px rgba(0,0,0,0.15);
     z-index: 50;
   }
 
-  .message { max-width: 85%; }
+  .message { max-width: 88%; }
 
+  /* Move action buttons inside the bubble on mobile */
   .action-buttons {
-    right: -40px;
+    position: static;
+    right: auto;
+    left: auto;
+    flex-direction: row;
+    margin-top: 6px;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 4px;
   }
   .message.self .action-buttons {
-    left: -40px;
+    left: auto;
     right: auto;
+    justify-content: flex-start;
+  }
+
+  .action-button {
+    width: 22px;
+    height: 22px;
+    font-size: 11px;
   }
 
   .attachment-container {
-    width: 200px;
-    height: 200px;
+    width: 100%;
+    max-width: 220px;
+    height: auto;
+    aspect-ratio: 1;
+  }
+
+  .message-input {
+    min-width: 80px;
+  }
+
+  .attach-button {
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  .chat-input {
+    padding: 8px;
+    gap: 6px;
+  }
+
+  .send-button {
+    padding: 10px 16px;
+    font-size: 13px;
+    margin-left: 0;
   }
 }
 </style>
