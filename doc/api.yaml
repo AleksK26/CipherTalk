@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: WASAText
+  title: CipherTalk
   description: |-
-    This OpenAPI document describes APIs for the project "WASAText".
+    This OpenAPI document describes APIs for the project "CipherTalk".
 
     Student: Aleksandar Kirilov
     Matricola: 2059920

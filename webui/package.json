@@ -1,11 +1,11 @@
 {
-	"name": "teapot",
+	"name": "ciphertalk",
 	"version": "0.0.0",
 	"scripts": {
-		"dev": "yarn install --immutable --immutable-cache && vite",
-		"build-dev": "yarn install --immutable --immutable-cache && vite build --mode development",
-		"build-prod": "yarn install --immutable --immutable-cache && vite build --mode production",
-		"build-embed": "yarn install --immutable --immutable-cache && vite build --mode production --base=/dashboard/",
+		"dev": "vite",
+		"build-dev": "vite build --mode development",
+		"build-prod": "vite build --mode production",
+		"build-embed": "vite build --mode production --base=/dashboard/",
 		"preview": "vite preview --port 4173"
 	},
 	"dependencies": {
@@ -16,6 +16,5 @@
 	"devDependencies": {
 		"@vitejs/plugin-vue": "^3.0.1",
 		"vite": "^3.0.4"
-	},
-	"packageManager": "yarn@4.5.0"
+	}
 }

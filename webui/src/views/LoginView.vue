@@ -73,15 +73,15 @@ export default {
   <div class="auth-root">
     <div class="auth-left">
       <div class="brand">
-        <div class="brand-icon">💬</div>
-        <h1 class="brand-name">WASAText</h1>
-        <p class="brand-tagline">Simple, fast, and secure messaging.</p>
+        <div class="brand-icon">🔐</div>
+        <h1 class="brand-name">CipherTalk</h1>
+        <p class="brand-tagline">End-to-end encrypted messaging you can trust.</p>
       </div>
     </div>
     <div class="auth-right">
       <div class="auth-card">
         <h2 class="auth-heading">{{ mode === 'signin' ? 'Welcome back' : 'Create account' }}</h2>
-        <p class="auth-sub">{{ mode === 'signin' ? 'Sign in to continue' : 'Join WASAText today' }}</p>
+        <p class="auth-sub">{{ mode === 'signin' ? 'Sign in to continue' : 'Join CipherTalk today' }}</p>
 
         <div class="tab-row">
           <button :class="['tab-btn', mode === 'signin' ? 'active' : '']" @click="switchMode('signin')">Sign In</button>

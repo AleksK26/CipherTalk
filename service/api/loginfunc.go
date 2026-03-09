@@ -1,15 +1,56 @@
 package api
 
 import (
+	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/AleksK26/WASA_AleksK_2024-25/service/api/reqcontext"
 	"github.com/AleksK26/WASA_AleksK_2024-25/service/database"
 	"github.com/julienschmidt/httprouter"
 )
+
+// hashPassword returns a salted SHA-256 hash in the format "sha256:<salt_hex>:<hash_hex>".
+func hashPassword(password string) (string, error) {
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		return "", err
+	}
+	saltHex := hex.EncodeToString(salt)
+	h := sha256.New()
+	h.Write(salt)
+	h.Write([]byte(password))
+	hashHex := hex.EncodeToString(h.Sum(nil))
+	return "sha256:" + saltHex + ":" + hashHex, nil
+}
+
+// verifyPassword checks a password against a stored hash.
+// Supports the new "sha256:<salt>:<hash>" format and legacy plaintext.
+func verifyPassword(stored, input string) bool {
+	if strings.HasPrefix(stored, "sha256:") {
+		rest := stored[7:]
+		idx := strings.Index(rest, ":")
+		if idx < 0 {
+			return false
+		}
+		saltHex, hashHex := rest[:idx], rest[idx+1:]
+		salt, err := hex.DecodeString(saltHex)
+		if err != nil {
+			return false
+		}
+		h := sha256.New()
+		h.Write(salt)
+		h.Write([]byte(input))
+		return hex.EncodeToString(h.Sum(nil)) == hashHex
+	}
+	// Legacy: plaintext comparison
+	return stored == input
+}
 
 func (rt *_router) doLogin(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx reqcontext.RequestContext) {
 	if r.Method != http.MethodPost {
@@ -63,11 +104,17 @@ func (rt *_router) doLogin(w http.ResponseWriter, r *http.Request, ps httprouter
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
+		hashedPw, hashErr := hashPassword(req.Password)
+		if hashErr != nil {
+			ctx.Logger.WithError(hashErr).Error("Failed to hash password")
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 		newUser := database.User{
 			Id:       newID,
 			Name:     req.Name,
 			Photo:    photoBytes,
-			Password: req.Password,
+			Password: hashedPw,
 		}
 		createdUser, createErr := rt.db.CreateUser(newUser)
 		if createErr != nil {
@@ -94,8 +141,8 @@ func (rt *_router) doLogin(w http.ResponseWriter, r *http.Request, ps httprouter
 		return
 	}
 
-	// If user has no password yet (legacy account), accept any password and set it
-	if existingUser.Password != "" && existingUser.Password != req.Password {
+	// If user has no password yet (legacy account), accept any password
+	if existingUser.Password != "" && !verifyPassword(existingUser.Password, req.Password) {
 		http.Error(w, "Invalid password", http.StatusUnauthorized)
 		return
 	}

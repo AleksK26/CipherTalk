@@ -2,8 +2,8 @@
   <!-- Desktop: vertical sidebar -->
   <nav class="sidebar desktop-sidebar">
     <div class="brand">
-      <span class="brand-icon">💬</span>
-      <span class="brand-name">WASAText</span>
+      <span class="brand-icon">🔐</span>
+      <span class="brand-name">CipherTalk</span>
     </div>
 
     <div class="user-block">

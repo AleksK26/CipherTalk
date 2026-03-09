@@ -1,115 +1,198 @@
-# Fantastic coffee (decaffeinated)
+# CipherTalk
 
-This repository contains the basic structure for [Web and Software Architecture](http://gamificationlab.uniroma1.it/en/wasa/) homework project.
-It has been described in class.
+A secure, real-time web chat application with direct messaging, group chats, file sharing, and message reactions.
 
-"Fantastic coffee (decaffeinated)" is a simplified version for the WASA course, not suitable for a production environment.
-The full version can be found in the "Fantastic Coffee" repository.
+Built as a university project for the [Web and Software Architecture](http://gamificationlab.uniroma1.it/en/wasa/) course at Sapienza University of Rome.
 
-## Project structure
+---
 
-* `cmd/` contains all executables; Go programs here should only do "executable-stuff", like reading options from the CLI/env, etc.
-	* `cmd/healthcheck` is an example of a daemon for checking the health of servers daemons; useful when the hypervisor is not providing HTTP readiness/liveness probes (e.g., Docker engine)
-	* `cmd/webapi` contains an example of a web API server daemon
-* `demo/` contains a demo config file
-* `doc/` contains the documentation (usually, for APIs, this means an OpenAPI file)
-* `service/` has all packages for implementing project-specific functionalities
-	* `service/api` contains an example of an API server
-	* `service/globaltime` contains a wrapper package for `time.Time` (useful in unit testing)
-* `vendor/` is managed by Go, and contains a copy of all dependencies
-* `webui/` is an example of a web frontend in Vue.js; it includes:
-	* Bootstrap JavaScript framework
-	* a customized version of "Bootstrap dashboard" template
-	* feather icons as SVG
-	* Go code for release embedding
+## Features
 
-Other project files include:
-* `open-node.sh` starts a new (temporary) container using `node:20` image for safe and secure web frontend development (you don't want to use `node` in your system, do you?).
+- **Sign Up / Sign In** — username + password authentication (passwords stored as salted SHA-256 hashes)
+- **Direct Messaging** — one-on-one conversations with any registered user
+- **Group Chats** — create groups, manage members, assign roles (admin / member)
+- **File & Image Sharing** — attach photos and GIFs to messages
+- **Message Reactions** — react to messages with a heart
+- **Reply & Forward** — thread replies and forward messages to other conversations
+- **Read Receipts** — checkmarks show sent / delivered / read status
+- **Profile Management** — update username and profile photo
+- **User Search** — find other users by username
+- **Responsive UI** — desktop sidebar + mobile bottom tab bar
 
-## Go vendoring
+---
 
-This project uses [Go Vendoring](https://go.dev/ref/mod#vendoring). You must use `go mod vendor` after changing some dependency (`go get` or `go mod tidy`) and add all files under `vendor/` directory in your commit.
+## Tech Stack
 
-For more information about vendoring:
+| Layer | Technology |
+|---|---|
+| Backend | Go 1.21, [httprouter](https://github.com/julienschmidt/httprouter) |
+| Database | SQLite (pure Go via [modernc.org/sqlite](https://gitlab.com/cznic/sqlite)) |
+| Frontend | Vue 3, Vite, Axios |
+| Auth | Bearer token (user ID issued on login) |
+| Real-time | Client-side polling every 5 seconds |
+| Deployment | Fly.io (backend) + Cloudflare Pages (frontend) |
 
-* https://go.dev/ref/mod#vendoring
-* https://www.ardanlabs.com/blog/2020/04/modules-06-vendoring.html
+---
 
-## Node/YARN vendoring
+## Project Structure
 
-This repository uses `yarn` and a vendoring technique that exploits the ["Offline mirror"](https://yarnpkg.com/features/caching). As for the Go vendoring, the dependencies are inside the repository.
-
-You should commit the files inside the `.yarn` directory.
-
-## How to set up a new project from this template
-
-You need to:
-
-* Change the Go module path to your module path in `go.mod`, `go.sum`, and in `*.go` files around the project
-* Rewrite the API documentation `doc/api.yaml`
-* If no web frontend is expected, remove `webui` and `cmd/webapi/register-webui.go`
-* Update top/package comment inside `cmd/webapi/main.go` to reflect the actual project usage, goal, and general info
-* Update the code in `run()` function (`cmd/webapi/main.go`) to connect to databases or external resources
-* Write API code inside `service/api`, and create any further package inside `service/` (or subdirectories)
-
-## How to build
-
-If you're not using the WebUI, or if you don't want to embed the WebUI into the final executable, then:
-
-```shell
-go build ./cmd/webapi/
+```
+cmd/
+  webapi/          # Backend entry point (HTTP server)
+demo/
+  config.yml       # Local development config
+doc/
+  api.yaml         # OpenAPI 3.0 specification
+service/
+  api/             # HTTP handlers and business logic
+  database/        # SQLite data access layer
+  globaltime/      # Time wrapper (for testing)
+vendor/            # Vendored Go dependencies
+webui/
+  src/
+    views/         # Vue page components (Login, Home, Chat, Profile, …)
+    components/    # Shared components (Sidebar, etc.)
+  public/          # Static assets
+Dockerfile.backend
+Dockerfile.frontend
+fly.toml           # Fly.io deployment config
 ```
 
-If you're using the WebUI and you want to embed it into the final executable:
+---
 
-```shell
-./open-node.sh
-# (here you're inside the container)
-yarn run build-embed
-exit
-# (outside the container)
-go build -tags webui ./cmd/webapi/
-```
+## Running Locally
 
-## How to run (in development mode)
+### Prerequisites
+- Go 1.21+
+- Node.js 18+ and npm
 
-You can launch the backend only using:
+### Backend
 
-```shell
+```bash
 go run ./cmd/webapi/
 ```
 
-If you want to launch the WebUI, open a new tab and launch:
+The API server starts on `http://localhost:3000`.
 
-```shell
-./open-node.sh
-# (here you're inside the container)
-yarn run dev
+By default it uses the DB path set in `demo/config.yml`. You can override it:
+
+```bash
+go run ./cmd/webapi/ --db-filename /tmp/ciphertalk.db
 ```
 
-## How to build for production / homework delivery
+### Frontend
 
-```shell
-./open-node.sh
-# (here you're inside the container)
-yarn run build-prod
+```bash
+cd webui
+npm install
+npm run dev
 ```
 
-For "Web and Software Architecture" students: before committing and pushing your work for grading, please read the section below named "My build works when I use `yarn run dev`, however there is a Javascript crash in production/grading"
+The dev server starts on `http://localhost:5173` and proxies API calls to port 3000.
 
-## Known issues
+---
 
-### My build works when I use `yarn run dev`, however there is a Javascript crash in production/grading
+## Building for Production
 
-Some errors in the code are somehow not shown in `vite` development mode. To preview the code that will be used in production/grading settings, use the following commands:
+### Backend
 
-```shell
-./open-node.sh
-# (here you're inside the container)
-yarn run build-prod
-yarn run preview
+```bash
+go build -o webapi ./cmd/webapi/
+./webapi
 ```
+
+### Frontend
+
+```bash
+cd webui
+npm install
+npm run build-prod
+# Output is in webui/dist/
+```
+
+---
+
+## Docker
+
+### Backend
+
+```bash
+docker build -f Dockerfile.backend -t ciphertalk-api .
+docker run -p 3000:3000 ciphertalk-api
+```
+
+### Frontend
+
+```bash
+docker build -f Dockerfile.frontend -t ciphertalk-web .
+docker run -p 80:80 ciphertalk-web
+```
+
+---
+
+## Deployment
+
+### Backend — Fly.io
+
+```bash
+fly auth login
+fly launch --name ciphertalk-api --dockerfile Dockerfile.backend
+fly volumes create db_data --size 1 --region ams
+fly secrets set WEBAPI_DB_FILENAME=/data/ciphertalk.db
+fly deploy
+```
+
+### Frontend — Cloudflare Pages
+
+1. Connect your GitHub repo at [pages.cloudflare.com](https://pages.cloudflare.com)
+2. Set **Build command:** `cd webui && npm install && npm run build-prod`
+3. Set **Build output directory:** `webui/dist`
+4. Add environment variable: `VITE_API_URL` = `https://ciphertalk-api.fly.dev`
+
+---
+
+## API
+
+The full REST API is documented in [`doc/api.yaml`](doc/api.yaml) (OpenAPI 3.0).
+
+Key endpoints:
+
+| Method | Path | Description |
+|---|---|---|
+| POST | `/session` | Sign in or sign up |
+| GET | `/users` | Search users by username |
+| GET/PUT | `/users/{id}` | Get or update user profile |
+| GET | `/conversations` | List all conversations |
+| GET/POST | `/conversations/{id}/messages` | Get or send messages |
+| POST | `/groups` | Create a group |
+| PUT/DELETE | `/groups/{id}` | Update or delete a group |
+| POST/DELETE | `/groups/{id}/members/{uid}` | Add or remove group members |
+| POST/DELETE | `/messages/{id}/reactions` | Add or remove a reaction |
+
+---
+
+## Security Notes
+
+- Passwords are hashed with a random 16-byte salt + SHA-256 before storage
+- Bearer tokens are currently plain user IDs — not signed JWTs (suitable for academic use)
+- No rate limiting is applied — not recommended for high-traffic production use
+- HTTPS is enforced by Fly.io and Cloudflare in the deployed environment
+
+---
+
+## Academic Context
+
+This project was developed as part of the **Web and Software Architecture** course (A.Y. 2024–2025) at [Sapienza University of Rome](https://www.uniroma1.it/en/).
+
+The repository structure and backend skeleton are based on the course template by [Prof. Enrico Bassetti](https://github.com/enbas).
+
+---
 
 ## License
 
-See [LICENSE](LICENSE).
+This project is licensed under the MIT License.
+
+- Original template © 2022 Enrico Bassetti
+- CipherTalk implementation © 2024–2025 Aleksandar Kirilov
+
+See [LICENSE](LICENSE) for the full text.
