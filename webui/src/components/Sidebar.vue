@@ -1,4 +1,5 @@
 <template>
+  <div class="sidebar-root">
   <!-- Desktop: vertical sidebar -->
   <nav class="sidebar desktop-sidebar">
     <div class="brand">
@@ -68,6 +69,7 @@
       <span>Logout</span>
     </button>
   </nav>
+  </div>
 </template>
 
 <script>
@@ -95,6 +97,11 @@ export default {
 </script>
 
 <style scoped>
+/* ─── Root wrapper ───────────────────────────────────────────────── */
+.sidebar-root {
+  display: contents;
+}
+
 /* ─── Desktop Sidebar ────────────────────────────────────────────── */
 .desktop-sidebar {
   display: flex;

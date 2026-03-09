@@ -55,23 +55,16 @@ html, body {
   overflow-y: auto;
 }
 
-/* Mobile: sidebar becomes a bottom tab bar */
+/* Mobile: sidebar becomes a bottom tab bar (handled by Sidebar.vue itself) */
 @media (max-width: 767px) {
   .app-shell {
     flex-direction: column;
   }
   .app-sidebar {
-    width: 100%;
-    height: auto;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    top: auto;
-    z-index: 100;
+    display: none; /* desktop sidebar hidden on mobile; Sidebar.vue's mobile-tabs uses its own fixed positioning */
   }
   .app-main {
-    padding-bottom: 68px; /* space for bottom tab bar */
+    padding-bottom: 68px; /* space for Sidebar.vue's fixed mobile tab bar */
   }
 }
 </style>

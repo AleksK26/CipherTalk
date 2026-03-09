@@ -586,16 +586,15 @@ export default {
   object-fit: cover;
 }
 .action-buttons {
-  position: absolute;
-  top: 0;
-  right: -50px;
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  justify-content: flex-end;
 }
 .message.self .action-buttons {
-  left: -50px;
-  right: auto;
+  justify-content: flex-start;
 }
 .action-button {
   position: static;
@@ -923,29 +922,6 @@ export default {
   }
 
   .message { max-width: 88%; }
-
-  /* Move action buttons inside the bubble on mobile */
-  .action-buttons {
-    position: static;
-    right: auto;
-    left: auto;
-    flex-direction: row;
-    margin-top: 6px;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-  .message.self .action-buttons {
-    left: auto;
-    right: auto;
-    justify-content: flex-start;
-  }
-
-  .action-button {
-    width: 22px;
-    height: 22px;
-    font-size: 11px;
-  }
 
   .attachment-container {
     width: 100%;
