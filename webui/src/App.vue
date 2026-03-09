@@ -41,12 +41,7 @@ html, body {
 }
 
 .app-sidebar {
-  width: 240px;
-  flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  height: 100vh;
-  overflow-y: auto;
+  /* display:contents wrapper — sizing handled by nav elements inside Sidebar.vue */
 }
 
 .app-main {
@@ -55,16 +50,12 @@ html, body {
   overflow-y: auto;
 }
 
-/* Mobile: sidebar becomes a bottom tab bar (handled by Sidebar.vue itself) */
 @media (max-width: 767px) {
   .app-shell {
     flex-direction: column;
   }
-  .app-sidebar {
-    display: none; /* desktop sidebar hidden on mobile; Sidebar.vue's mobile-tabs uses its own fixed positioning */
-  }
   .app-main {
-    padding-bottom: 68px; /* space for Sidebar.vue's fixed mobile tab bar */
+    padding-bottom: 68px;
   }
 }
 </style>

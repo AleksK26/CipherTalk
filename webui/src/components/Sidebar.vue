@@ -104,6 +104,10 @@ export default {
 
 /* ─── Desktop Sidebar ────────────────────────────────────────────── */
 .desktop-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
   display: flex;
   flex-direction: column;
   height: 100vh;
