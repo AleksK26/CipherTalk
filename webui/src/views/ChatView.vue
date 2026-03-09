@@ -731,10 +731,12 @@ export default {
 }
 .chat-input {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   flex-wrap: wrap;
-  padding: 10px;
+  padding: 12px 16px;
   gap: 8px;
+  background: #fff;
+  border-top: 1px solid #e2e8f0;
 }
 .attach-button {
   background: #f0f2f5;
