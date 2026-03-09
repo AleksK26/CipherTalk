@@ -181,7 +181,8 @@
         this.errormsg = null;
         try {
           const response = await axios.get(`/search`, {
-            params: { username: this.query }
+            params: { username: this.query },
+            headers: { Authorization: `Bearer ${this.token}` }
           });
           this.users = response.data;
           this.lastQuery = this.query;

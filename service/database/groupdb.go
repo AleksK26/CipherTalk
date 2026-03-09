@@ -8,8 +8,18 @@ import (
 	"time"
 )
 
-func (db *appdbimpl) CreateGroupConversation(conversationID string, memberIDs []string, name string, photo []byte) error {
-	_, err := db.c.Exec(`
+func (db *appdbimpl) CreateGroupConversation(conversationID string, memberIDs []string, name string, photo []byte, creatorID string) error {
+	tx, err := db.c.Begin()
+	if err != nil {
+		return fmt.Errorf("error starting transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	_, err = tx.Exec(`
         INSERT INTO conversations (id, name, type, created_at, conversationPhoto)
         VALUES (?, ?, 'group', ?, ?)
     `, conversationID, name, time.Now().Format(time.RFC3339), photo)
@@ -17,13 +27,21 @@ func (db *appdbimpl) CreateGroupConversation(conversationID string, memberIDs []
 		return fmt.Errorf("error creating new conversation: %w", err)
 	}
 	for _, memberID := range memberIDs {
-		_, err = db.c.Exec(`
-            INSERT INTO conversation_members (conversationId, userId)
-            VALUES (?, ?)
-        `, conversationID, memberID)
+		role := "member"
+		if memberID == creatorID {
+			role = "admin"
+		}
+		_, err = tx.Exec(`
+            INSERT INTO conversation_members (conversationId, userId, role)
+            VALUES (?, ?, ?)
+        `, conversationID, memberID, role)
 		if err != nil {
 			return fmt.Errorf("error adding member %s to conversation_members: %w", memberID, err)
 		}
+	}
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("error committing transaction: %w", err)
 	}
 	return nil
 }
@@ -162,29 +180,28 @@ func (db *appdbimpl) AddUserToGroup(conversationID string, userID string) error 
 	return nil
 }
 
-func (db *appdbimpl) GetGroupMemberDetails(groupID string) ([]User, error) {
+func (db *appdbimpl) GetGroupMemberDetails(groupID string) ([]GroupMember, error) {
 	query := `
-		SELECT u.id, u.name, u.photo
+		SELECT u.id, u.name, u.photo, cm.role
 		FROM users u
 		JOIN conversation_members cm ON u.id = cm.userId
 		WHERE cm.conversationId = ?
-		ORDER BY u.name
+		ORDER BY CASE cm.role WHEN 'admin' THEN 0 ELSE 1 END, u.name
 	`
 
 	rows, err := db.c.Query(query, groupID)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching group member details: %w", err)
-
 	}
 	defer rows.Close()
 
-	var members []User
+	var members []GroupMember
 	for rows.Next() {
-		var user User
-		if err := rows.Scan(&user.Id, &user.Name, &user.Photo); err != nil {
+		var m GroupMember
+		if err := rows.Scan(&m.Id, &m.Name, &m.Photo, &m.Role); err != nil {
 			return nil, fmt.Errorf("error scanning member details: %w", err)
 		}
-		members = append(members, user)
+		members = append(members, m)
 	}
 
 	if err = rows.Err(); err != nil {
@@ -193,12 +210,35 @@ func (db *appdbimpl) GetGroupMemberDetails(groupID string) ([]User, error) {
 	return members, nil
 }
 
+func (db *appdbimpl) IsGroupAdmin(groupID, userID string) (bool, error) {
+	var role string
+	err := db.c.QueryRow(
+		`SELECT role FROM conversation_members WHERE conversationId = ? AND userId = ?`,
+		groupID, userID,
+	).Scan(&role)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return role == "admin", nil
+}
+
+func (db *appdbimpl) RemoveUserFromGroup(groupID, userID string) error {
+	_, err := db.c.Exec(
+		`DELETE FROM conversation_members WHERE conversationId = ? AND userId = ?`,
+		groupID, userID,
+	)
+	return err
+}
+
 func (db *appdbimpl) AddGroupMember(groupID string, newMemberID string) error {
 	// Check if user is already in group
 	var exists bool
 	err := db.c.QueryRow(`
 		SELECT EXISTS(
-			SELECT 1 FROM cconversation_members
+			SELECT 1 FROM conversation_members
 			WHERE conversationId = ? AND userId = ?
 		)
 	`, groupID, newMemberID).Scan(&exists)
@@ -225,14 +265,22 @@ func (db *appdbimpl) AddGroupMember(groupID string, newMemberID string) error {
 }
 
 func (db *appdbimpl) UpdateGroupInfo(groupID string, name string, photo []byte) error {
-	query := `
-		UPDATE conversations
-		SET name = COALESCE(NULLIF(?, ''), name),
-			conversationPhoto = COALESCE(NULLIF(?, ''), conversationPhoto)
-		WHERE id = ? AND type = 'group'
-	`
+	var query string
+	var result sql.Result
+	var err error
 
-	result, err := db.c.Exec(query, name, photo, groupID)
+	if name != "" && photo != nil {
+		query = `UPDATE conversations SET name = ?, conversationPhoto = ? WHERE id = ? AND type = 'group'`
+		result, err = db.c.Exec(query, name, photo, groupID)
+	} else if name != "" {
+		query = `UPDATE conversations SET name = ? WHERE id = ? AND type = 'group'`
+		result, err = db.c.Exec(query, name, groupID)
+	} else if photo != nil {
+		query = `UPDATE conversations SET conversationPhoto = ? WHERE id = ? AND type = 'group'`
+		result, err = db.c.Exec(query, photo, groupID)
+	} else {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("error updating group info: %w", err)
 	}

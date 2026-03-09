@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go build:*)",
+      "Bash(gcc:*)",
+      "Bash(where mingw32-gcc)",
+      "Bash(where x86_64-w64-mingw32-gcc)",
+      "Read(//c/mingw64/bin/**)",
+      "Read(//c/TDM-GCC-64/bin/**)",
+      "Bash(powershell:*)"
+    ]
+  }
+}

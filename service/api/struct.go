@@ -3,8 +3,10 @@ package api
 import "time"
 
 type LoginRequest struct {
-	Name  string `json:"name"`
-	Photo string `json:"photo"`
+	Name     string `json:"name"`
+	Password string `json:"password"`
+	Photo    string `json:"photo"`
+	Mode     string `json:"mode"` // "signin" or "signup"
 }
 
 type LoginResponse struct {

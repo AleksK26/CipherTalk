@@ -1,54 +1,39 @@
 <template>
-  <div>
-    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-      <h1 class="h2">{{ userName }}, search and text people!</h1>
-      <div class="btn-toolbar mb-2 mb-md-0">
-        <div class="btn-group me-2">
-          <button type="button" class="btn btn-sm btn-outline-secondary" @click="refresh">Refresh</button>
-          <button type="button" class="btn btn-sm btn-outline-secondary" @click="logOut">Log Out</button>
-        </div>
-        <div class="btn-group me-2">
-          <button type="button" class="btn btn-sm btn-outline-primary" @click="newGroup">New group</button>
-        </div>
-      </div>
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">Find People</h1>
+      <p class="page-sub">Search for users and start a conversation</p>
     </div>
 
-    <div class="search-container">
-      <form @submit.prevent="searchUsers" class="search-form">
+    <div class="search-wrap">
+      <form @submit.prevent="searchUsers" class="search-row">
         <input
-          id="username"
           v-model="query"
-          class="search-box"
+          class="search-input"
           type="text"
-          placeholder="Search by username"
+          placeholder="Search by username…"
         />
-        <button class="search-button" type="submit">Search</button>
+        <button class="search-btn" type="submit" :disabled="loading">
+          {{ loading ? 'Searching…' : 'Search' }}
+        </button>
       </form>
-      <div v-if="error" class="error-box">
-        {{ error }}
-      </div>
-      <div v-if="loading">
-        <LoadingSpinner />
-      </div>
-      <div v-if="!loading && showResults" class="results-section">
-        <h2 class="results-title">Results:</h2>
-        <template v-if="users.length > 0">
-          <div v-for="user in users" :key="user.id" class="user-card">
-            <div class="user-info">
-              <span class="user-avatar">{{ getInitials(user.name) }}</span>
-              <h5 class="user-name">@{{ user.name }}</h5>
-            </div>
-            <button
-              class="text-button"
-              @click="navigateToConversation(user.id, user.name)"
-            >
-              Start Chat
-            </button>
+
+      <div v-if="error" class="err-box">{{ error }}</div>
+
+      <LoadingSpinner v-if="loading" />
+
+      <div v-if="!loading && showResults">
+        <p class="results-label">{{ users.length }} result{{ users.length !== 1 ? 's' : '' }} for "{{ lastQuery }}"</p>
+        <div v-if="users.length === 0" class="empty-state">No users found.</div>
+        <div v-for="user in users" :key="user.id" class="user-card">
+          <div class="user-avatar">{{ getInitials(user.name) }}</div>
+          <div class="user-info">
+            <span class="user-name">{{ user.name }}</span>
           </div>
-        </template>
-        <template v-else>
-          <p class="no-results">No users found matching "{{ lastQuery }}"</p>
-        </template>
+          <button class="chat-btn" @click="navigateToConversation(user.id, user.name)">
+            Message
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -60,12 +45,9 @@ import LoadingSpinner from "../components/LoadingSpinner.vue";
 
 export default {
   name: "SearchPeopleView",
-  components: {
-    LoadingSpinner,
-  },
+  components: { LoadingSpinner },
   data() {
     return {
-      userName: localStorage.getItem("name"),
       query: "",
       lastQuery: "",
       users: [],
@@ -77,8 +59,7 @@ export default {
   methods: {
     async searchUsers() {
       if (!this.query.trim()) {
-        this.error = "Please enter a valid search query.";
-        this.showResults = false;
+        this.error = "Please enter a search term.";
         return;
       }
       this.loading = true;
@@ -86,185 +67,123 @@ export default {
       this.users = [];
       this.showResults = false;
       try {
+        const token = localStorage.getItem("token");
         const response = await axios.get(`/search`, {
           params: { username: this.query },
+          headers: { Authorization: `Bearer ${token}` },
         });
         this.users = response.data;
         this.lastQuery = this.query;
         this.showResults = true;
       } catch (err) {
-        const status = err.response?.status;
-        const reason = err.response?.data?.message || "Failed to fetch users.";
-        this.error = `Status ${status}: ${reason}`;
+        this.error = `Error: ${err.response?.data || "Failed to search users."}`;
       } finally {
         this.loading = false;
       }
     },
-    navigateToConversation(recipientId, recipientName) {
+    async navigateToConversation(recipientId, recipientName) {
       localStorage.setItem("conversationName", recipientName);
-      const senderId = localStorage.getItem("token");
-      axios
-        .post(`/conversations`, { senderId, recipientId })
-        .then((response) => {
-          const conversationId = response.data.conversationId;
-          this.$router.push({
-            path: `/conversations/${conversationId}`
-          });
-        })
-        .catch((error) => {
-          console.error("Error starting conversation:", error);
-        });
-    },
-    refresh() {
-      this.$router.push({ path: "/search" });
-    },
-    logOut() {
-      localStorage.clear();
-      this.$router.push({ path: "/" });
-    },
-    newGroup() {
-      this.$router.push({ path: "/new-group" });
+      const token = localStorage.getItem("token");
+      try {
+        const response = await axios.post(
+          `/conversations`,
+          { senderId: token, recipientId },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        this.$router.push({ path: `/conversations/${response.data.conversationId}` });
+      } catch (error) {
+        console.error("Error starting conversation:", error);
+        this.error = "Could not start conversation. Please try again.";
+      }
     },
     getInitials(name) {
       if (!name) return "?";
-      return name.split(" ").map(n => n[0]).join("").toUpperCase();
+      return name.slice(0, 2).toUpperCase();
     },
   },
   mounted() {
-    const token = localStorage.getItem("token");
-    if (!token) {
-      this.$router.push({ path: "/" });
-    }
-  }
+    if (!localStorage.getItem("token")) this.$router.push("/");
+  },
 };
 </script>
 
 <style scoped>
-.search-container {
-  text-align: center;
-  padding: 20px;
-  max-width: 600px;
+.page {
+  max-width: 680px;
   margin: 0 auto;
+  padding: 40px 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
+.page-header { margin-bottom: 32px; }
+.page-title { font-size: 28px; font-weight: 700; color: #1a1f36; margin: 0 0 6px; }
+.page-sub { font-size: 15px; color: #718096; margin: 0; }
 
-.page-title {
-  font-size: 28px;
-  font-weight: bold;
-  margin-bottom: 20px;
-  color: #333;
+.search-wrap { background: #fff; border-radius: 16px; padding: 28px; box-shadow: 0 2px 16px rgba(0,0,0,0.06); }
+
+.search-row { display: flex; gap: 10px; margin-bottom: 20px; }
+.search-input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 15px;
+  outline: none;
+  transition: border-color 0.2s;
 }
-
-.search-form {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 20px;
-}
-
-.search-box {
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  font-size: 16px;
-  width: 300px;
-}
-
-.search-button {
-  padding: 10px 20px;
-  background-color: #007bff;
+.search-input:focus { border-color: #4c6ef5; }
+.search-btn {
+  padding: 12px 24px;
+  background: #4c6ef5;
   color: #fff;
   border: none;
-  border-radius: 5px;
-  font-size: 16px;
-  margin-left: 10px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
   cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+.search-btn:hover:not(:disabled) { background: #3b5bdb; }
+.search-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.err-box {
+  background: #fff5f5; border: 1px solid #fed7d7; color: #c53030;
+  border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-bottom: 16px;
 }
 
-.search-button:hover {
-  background-color: #0056b3;
-}
-
-.error-box {
-  background-color: #f8d7da;
-  color: #842029;
-  border: 1px solid #f5c2c7;
-  border-radius: 5px;
-  padding: 10px;
-  margin: 20px 0;
-  text-align: center;
-}
-
-.results-section {
-  margin-top: 20px;
-}
-
-.results-title {
-  font-size: 24px;
-  font-weight: bold;
-  color: #444;
-  margin-bottom: 10px;
-}
+.results-label { font-size: 13px; color: #718096; margin-bottom: 12px; }
+.empty-state { text-align: center; color: #a0aec0; padding: 32px 0; font-size: 15px; }
 
 .user-card {
-  padding: 10px;
-  margin: 10px 0;
-  background-color: #f9f9f9;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  font-size: 18px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.user-card:hover {
-  background-color: #e9ecef;
-}
-
-.user-info {
   display: flex;
   align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid #f0f2f5;
 }
-
+.user-card:last-child { border-bottom: none; }
 .user-avatar {
-  width: 40px;
-  height: 40px;
-  background-color: #007bff;
-  color: #fff;
+  width: 44px; height: 44px;
   border-radius: 50%;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-size: 18px;
-  margin-right: 10px;
-}
-
-.user-name {
-  margin: 0;
-  font-size: 18px;
-  color: #007bff;
-}
-
-.user-name:hover {
-  text-decoration: underline;
-}
-
-.text-button {
-  padding: 5px 10px;
-  background-color: #28a745;
+  background: linear-gradient(135deg, #4c6ef5, #7c3aed);
   color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 16px;
+  flex-shrink: 0;
+}
+.user-info { flex: 1; }
+.user-name { font-size: 15px; font-weight: 600; color: #1a1f36; }
+
+.chat-btn {
+  padding: 8px 18px;
+  background: #e8f0fe;
+  color: #4c6ef5;
   border: none;
-  border-radius: 5px;
-  cursor: pointer;
+  border-radius: 8px;
   font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
 }
-
-.text-button:hover {
-  background-color: #218838;
-}
-
-.no-results {
-  font-size: 16px;
-  color: #666;
-  margin-top: 20px;
-}
+.chat-btn:hover { background: #c5d5fc; }
 </style>

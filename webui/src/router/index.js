@@ -15,12 +15,12 @@ const routes = [
   { path: "/home", component: HomeView },
   { path: "/search", component: SearchPeopleView },
   { path: "/conversations/:uuid", name: "ChatView", component: ChatView, props: true },
-  { path: "/me", component: ProfileView},
-  { path: "/groups", component: GroupsView},
-  { path: "/new-group", component: GroupCreateView},
-  { path: "/groups/:uuid", name: "GroupEditView", component: GroupEditView, props: true},
+  { path: "/me", component: ProfileView },
+  { path: "/groups", component: GroupsView },
+  { path: "/new-group", component: GroupCreateView },
+  { path: "/groups/:uuid", name: "GroupEditView", component: GroupEditView, props: true },
+  { path: "/group/:groupId", name: "Group", component: GroupView },
   { path: "/:pathMatch(.*)*", name: "NotFound", component: NotFoundView },
-  { path: "/group/:groupId", name: "Group", component: GroupView, meta: { requiredAuth: true } }
 ];
 
 const router = createRouter({

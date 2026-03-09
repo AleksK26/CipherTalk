@@ -16,7 +16,7 @@ import (
 	"github.com/AleksK26/WASA_AleksK_2024-25/service/database"
 	"github.com/AleksK26/WASA_AleksK_2024-25/service/globaltime"
 	"github.com/ardanlabs/conf"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 	"github.com/sirupsen/logrus"
 )
 
@@ -52,7 +52,7 @@ func run() error {
 		logger.WithError(err).Error("failed to create database directory")
 		return fmt.Errorf("failed to create database directory: %w", err)
 	}
-	dbconn, err := sql.Open("sqlite3", cfg.DB.Filename)
+	dbconn, err := sql.Open("sqlite", cfg.DB.Filename)
 	if err != nil {
 		logger.WithError(err).Error("error opening SQLite DB")
 		return fmt.Errorf("opening SQLite: %w", err)

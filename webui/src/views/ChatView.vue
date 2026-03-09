@@ -36,8 +36,7 @@
                   class="reply-attachment"
                 />
               </div>
-              <p v-if="message.content.startsWith('<strong>Forwarded')" v-html="message.content"></p>
-              <p v-else>
+              <p>
                 <strong>
                   {{ message.senderId === userToken ? 'You' : (message.senderName || 'Unknown Sender') }}:
                 </strong>
@@ -132,27 +131,45 @@
             <span v-if="selectedFile" class="file-icon">🖼️</span>
           </button>
           <input v-model="message" class="message-input" type="text" placeholder="Type a message..." @input="toggleSendButton" />
-          <button v-if="message.trim() || selectedFile" class="send-button" @click="sendMessage">
-            Send
+          <button v-if="message.trim() || selectedFile" class="send-button" @click="sendMessage" :disabled="sending">
+            {{ sending ? 'Sending...' : 'Send' }}
           </button>
         </div>
       </div>
 
       <!-- Group Info Sidebar -->
       <div v-if="showGroupInfo && conversationType === 'group'" class="group-info-sidebar">
-        <h3>Group Members ({{ groupMembers.length }})</h3>
+        <div class="sidebar-header">
+          <h3>Members <span class="member-count">{{ groupMembers.length }}</span></h3>
+          <button class="sidebar-close" @click="showGroupInfo = false">✕</button>
+        </div>
         <ul class="members-list">
           <li v-for="member in groupMembers" :key="member.id" class="member-item">
-            <img 
-              :src="member.photo ? `data:image/jpeg;base64,${member.photo}` : defaultUserPhoto" 
-              alt="Member Photo" 
-              class="member-photo"
-            />
-            <span>{{ member.name }}</span>
+            <div class="member-avatar-wrap">
+              <img
+                v-if="member.photo"
+                :src="`data:image/jpeg;base64,${member.photo}`"
+                alt="Photo"
+                class="member-photo"
+              />
+              <div v-else class="member-initials">{{ member.name.slice(0,2).toUpperCase() }}</div>
+            </div>
+            <div class="member-info">
+              <span class="member-name">{{ member.name }}</span>
+              <span v-if="member.role === 'admin'" class="admin-badge">Admin</span>
+            </div>
+            <button
+              v-if="isCurrentUserAdmin && member.id !== userToken"
+              class="remove-member-btn"
+              @click="removeMember(member)"
+              title="Remove member"
+            >✕</button>
           </li>
         </ul>
-        
-        <button @click="leaveGroup" class="leave-group-btn">Leave Group</button>
+
+        <div class="sidebar-actions">
+          <button @click="leaveGroup" class="leave-group-btn">Leave Group</button>
+        </div>
         <ErrorMsg v-if="errormsg" :msg="errormsg" />
       </div>
     </div>
@@ -161,9 +178,11 @@
 
 <script>
 import axios from "../services/axios";
+import ErrorMsg from "../components/ErrorMsg.vue";
 
 export default {
   name: "ChatView",
+  components: { ErrorMsg },
   data() {
     return {
       message: "",
@@ -181,6 +200,7 @@ export default {
       showGroupInfo: false,
       groupMembers: [],
       errormsg: null,
+      sending: false,
       defaultUserPhoto: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=="
     };
   },
@@ -190,7 +210,10 @@ export default {
     },
     userId() {
       return localStorage.getItem("userId");
-    }
+    },
+    isCurrentUserAdmin() {
+      return this.groupMembers.some(m => m.id === this.userToken && m.role === "admin");
+    },
   },
   methods: {
     triggerFileInput() {
@@ -205,25 +228,34 @@ export default {
         this.$router.push({ path: "/" });
         return;
       }
-      const formData = new FormData();
-      formData.append("content", this.message);
-      if (this.replyToMessage) {
-        formData.append("replyTo", this.replyToMessage.id);
+      if (this.sending) return;
+      this.sending = true;
+      try {
+        const formData = new FormData();
+        formData.append("content", this.message);
+        if (this.replyToMessage) {
+          formData.append("replyTo", this.replyToMessage.id);
+        }
+        if (this.selectedFile) {
+          formData.append("attachment", this.selectedFile);
+        }
+        await axios.post(`/conversations/${this.conversationId}/message`, formData, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        this.message = "";
+        this.selectedFile = null;
+        this.$refs.fileInput.value = "";
+        this.replyToMessage = null;
+        await this.fetchMessages();
+        this.$nextTick(() => {
+          this.forceScrollToBottom();
+        });
+      } catch (err) {
+        console.error("Failed to send message:", err);
+        this.errormsg = "Failed to send message. Please try again.";
+      } finally {
+        this.sending = false;
       }
-      if (this.selectedFile) {
-        formData.append("attachment", this.selectedFile);
-      }
-      await axios.post(`/conversations/${this.conversationId}/message`, formData, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      this.message = "";
-      this.selectedFile = null;
-      this.$refs.fileInput.value = "";
-      this.replyToMessage = null;
-      await this.fetchMessages();
-      this.$nextTick(() => {
-        this.forceScrollToBottom();
-      });
     },
     async fetchMessages() {
       const token = localStorage.getItem("token");
@@ -283,8 +315,7 @@ export default {
           await axios.delete(`/conversations/${this.conversationId}/members/me`, {
             headers: { Authorization: `Bearer ${token}` }
           });
-          this.$router.push("/conversations");
-          this.$toast.success("You left the group");
+          this.$router.push("/home");
         } catch (error) {
           this.errormsg = error.response?.data?.message || "Failed to leave group";
         }
@@ -322,10 +353,16 @@ export default {
         this.$router.push({ path: "/" });
         return;
       }
-      await axios.delete(`/conversations/${this.conversationId}/message/${message.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      this.messages = this.messages.filter(m => m.id !== message.id);
+      if (!confirm("Delete this message?")) return;
+      try {
+        await axios.delete(`/conversations/${this.conversationId}/message/${message.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        this.messages = this.messages.filter(m => m.id !== message.id);
+      } catch (err) {
+        console.error("Failed to delete message:", err);
+        this.errormsg = "Failed to delete message.";
+      }
     },
     formatTimestamp(timestamp) {
       const date = new Date(timestamp);
@@ -428,6 +465,18 @@ export default {
     },
     cancelReply() {
       this.replyToMessage = null;
+    },
+    async removeMember(member) {
+      if (!confirm(`Remove ${member.name} from the group?`)) return;
+      const token = localStorage.getItem("token");
+      try {
+        await axios.delete(`/groups/${this.conversationId}/members/${member.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        this.groupMembers = this.groupMembers.filter(m => m.id !== member.id);
+      } catch (err) {
+        this.errormsg = err.response?.data || "Failed to remove member.";
+      }
     }
   },
   mounted() {
@@ -454,9 +503,10 @@ export default {
 .chat-header {
   display: flex;
   align-items: center;
-  padding: 15px;
-  background-color: #f8f9fa;
-  border-bottom: 1px solid #dee2e6;
+  padding: 14px 20px;
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
 }
 .chat-photo {
   width: 40px;
@@ -475,20 +525,24 @@ export default {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
-  border-top: 1px solid #ccc;
-  border-bottom: 1px solid #ccc;
+  background: #f7f8fc;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
 }
 .message {
   position: relative;
   max-width: 70%;
   margin-bottom: 10px;
-  border-radius: 10px;
-  padding: 10px;
-  background-color: #e0f2f1;
+  border-radius: 14px;
+  padding: 10px 14px;
+  background: #f0f2f5;
+  border-bottom-left-radius: 4px;
 }
 .message.self {
   margin-left: auto;
-  background-color: #d1e7dd;
+  background: #e8f0fe;
+  border-bottom-left-radius: 14px;
+  border-bottom-right-radius: 4px;
 }
 .sender-thumbnail {
   position: absolute;
@@ -684,18 +738,17 @@ export default {
   gap: 8px;
 }
 .attach-button {
-  background-color: #25d366;
-  color: white;
+  background: #f0f2f5;
+  color: #4a5568;
   border: none;
   border-radius: 20px;
   cursor: pointer;
-  margin-right: 10px;
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 500;
   padding: 10px 15px;
+  transition: background 0.2s;
 }
-.attach-button:hover {
-  background-color: #20b358;
-}
+.attach-button:hover { background: #e2e8f0; }
 .message-input {
   flex: 1;
   min-width: 200px;
@@ -706,7 +759,7 @@ export default {
   outline: none;
 }
 .send-button {
-  background-color: #128c7e;
+  background: #4c6ef5;
   color: white;
   border: none;
   padding: 12px 24px;
@@ -714,10 +767,10 @@ export default {
   margin-left: 10px;
   cursor: pointer;
   font-size: 14px;
+  font-weight: 600;
+  transition: background 0.2s;
 }
-.send-button:hover {
-  background-color: #0f7c6a;
-}
+.send-button:hover { background: #3b5bdb; }
 .checkmark {
   color: #2c8b47; /* green for sent */
   font-size: 1.2em;
@@ -733,68 +786,155 @@ export default {
 }
 
 .info-button {
-  background-color: #007bff;
-  color: white;
+  background: #e8f0fe;
+  color: #4c6ef5;
   border: none;
   padding: 8px 16px;
-  border-radius: 5px;
+  border-radius: 8px;
   cursor: pointer;
   margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.2s;
 }
-
-.info-button:hover {
-  background-color: #0056b3;
-}
+.info-button:hover { background: #c5d5fc; }
 
 .group-info-sidebar {
-  width: 300px;
-  border-left: 1px solid #dee2e6;
-  padding: 15px;
-  overflow-y: auto;
-  background-color: #f8f9fa;
+  width: 280px;
+  border-left: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid #f0f2f5;
+}
+.sidebar-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1f36;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.member-count {
+  background: #e8f0fe;
+  color: #4c6ef5;
+  font-size: 12px;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-weight: 600;
+}
+.sidebar-close {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: #a0aec0;
+  cursor: pointer;
+  padding: 4px;
+}
+.sidebar-close:hover { color: #4a5568; }
 
 .members-list {
   list-style: none;
-  padding: 0;
-  margin: 15px 0;
+  padding: 8px 0;
+  margin: 0;
+  flex: 1;
+  overflow-y: auto;
 }
 
 .member-item {
   display: flex;
   align-items: center;
-  padding: 10px;
-  border-bottom: 1px solid #eee;
+  gap: 10px;
+  padding: 10px 16px;
+}
+.member-item:hover { background: #f7f8fc; }
+
+.member-avatar-wrap { flex-shrink: 0; }
+.member-photo {
+  width: 38px; height: 38px;
+  border-radius: 50%; object-fit: cover;
+}
+.member-initials {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4c6ef5, #7c3aed);
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700;
 }
 
-.member-photo {
-  width: 40px;
-  height: 40px;
-  border-radius: 20px;
-  margin-right: 10px;
-  object-fit: cover;
+.member-info { flex: 1; min-width: 0; }
+.member-name { font-size: 14px; font-weight: 500; color: #1a1f36; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin-badge {
+  display: inline-block;
+  font-size: 10px;
+  background: #fff3cd;
+  color: #856404;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.remove-member-btn {
+  background: none; border: none;
+  color: #cbd5e0; font-size: 14px; cursor: pointer; padding: 4px;
+}
+.remove-member-btn:hover { color: #e53e3e; }
+
+.sidebar-actions {
+  padding: 12px 16px;
+  border-top: 1px solid #f0f2f5;
 }
 
 .leave-group-btn {
   width: 100%;
-  background-color: #dc3545;
-  color: white;
-  border: none;
+  background: #fff5f5;
+  color: #c53030;
+  border: 1px solid #fed7d7;
   padding: 10px;
-  border-radius: 5px;
-  margin-top: 15px;
-  cursor: pointer;
+  border-radius: 8px;
   font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
 }
+.leave-group-btn:hover { background: #fed7d7; }
 
-.leave-group-btn:hover {
-  background-color: #c82333;
-}
+@media (max-width: 767px) {
+  .chat-container { height: calc(100vh - 68px); }
 
-@media (max-width: 600px) {
-  .conversation-block p {
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
+  .group-info-sidebar {
+    position: fixed;
+    top: 0; bottom: 68px;
+    right: 0;
+    width: 100%;
+    max-width: 320px;
+    box-shadow: -4px 0 20px rgba(0,0,0,0.15);
+    z-index: 50;
+  }
+
+  .message { max-width: 85%; }
+
+  .action-buttons {
+    right: -40px;
+  }
+  .message.self .action-buttons {
+    left: -40px;
+    right: auto;
+  }
+
+  .attachment-container {
+    width: 200px;
+    height: 200px;
   }
 }
 </style>

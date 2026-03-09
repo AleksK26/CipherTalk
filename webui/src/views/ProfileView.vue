@@ -1,50 +1,68 @@
 <template>
-  <div>
-    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-      <h1 class="h2">{{ userName }}, here is your profile</h1>
-      <div class="btn-toolbar mb-2 mb-md-0">
-        <div class="btn-group me-2">
-          <button type="button" class="btn btn-sm btn-outline-secondary" @click="refresh">Refresh</button>
-          <button type="button" class="btn btn-sm btn-outline-secondary" @click="logOut">Log Out</button>
-        </div>
-        <div class="btn-group me-2">
-          <button type="button" class="btn btn-sm btn-outline-primary" @click="newGroup">New group</button>
-        </div>
-      </div>
+  <div class="page">
+    <div class="page-header">
+      <h1 class="page-title">Profile</h1>
+      <p class="page-sub">Manage your account</p>
     </div>
-    
-    <div class="profile-container">
-      <div class="profile-header">
-        <div class="photo-container">
-          <img v-if="userPhoto" :src="userPhoto" alt="User Photo" class="profile-photo" />
-          <p v-else class="no-photo-placeholder">No Photo</p>
+
+    <div class="profile-card">
+      <!-- Avatar + name -->
+      <div class="identity-row">
+        <div class="avatar-wrap">
+          <img v-if="userPhoto" :src="userPhoto" alt="Photo" class="avatar-img" />
+          <div v-else class="avatar-initials">{{ initials }}</div>
         </div>
-        <div class="username-container">
-          <h1 class="username">{{ userName }}</h1>
-          <div class="update-username-section">
-            <input
-              v-model="newUserName"
-              placeholder="Enter new username"
-              maxlength="16"
-              minlength="3"
-            />
-            <button
-              class="custom-button"
-              @click="updateUsername"
-              :disabled="!newUserName || newUserName === userName"
-            >
-              Update Username
-            </button>
-          </div>
-          <div class="update-photo-section">
-            <input type="file" @change="handlePhotoUpload" accept="image/*" />
-            <button class="custom-button" @click="updatePhoto" :disabled="!newPhoto">
-              Update Photo
-            </button>
-          </div>
+        <div class="identity-info">
+          <h2 class="display-name">{{ userName }}</h2>
+          <span class="online-dot">● Online</span>
         </div>
       </div>
+
       <ErrorMsg v-if="errormsg" :msg="errormsg" />
+      <div v-if="successMsg" class="success-banner">{{ successMsg }}</div>
+
+      <hr class="divider" />
+
+      <!-- Update username -->
+      <div class="section">
+        <label class="field-label">Change Username</label>
+        <div class="input-row">
+          <input
+            v-model="newUserName"
+            class="field-input"
+            type="text"
+            placeholder="New username (3–16 chars)"
+            maxlength="16"
+            @keyup.enter="updateUsername"
+          />
+          <button
+            class="save-btn"
+            @click="updateUsername"
+            :disabled="!newUserName || newUserName === userName || savingName"
+          >
+            {{ savingName ? '…' : 'Save' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Update photo -->
+      <div class="section">
+        <label class="field-label">Profile Photo</label>
+        <div class="photo-row">
+          <label class="upload-btn">
+            Choose Photo
+            <input type="file" @change="handlePhotoUpload" accept="image/*" style="display:none" />
+          </label>
+          <span v-if="newPhoto" class="file-selected">{{ newPhoto.name }}</span>
+          <button
+            class="save-btn"
+            @click="updatePhoto"
+            :disabled="!newPhoto || savingPhoto"
+          >
+            {{ savingPhoto ? '…' : 'Upload' }}
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -55,125 +73,84 @@ import ErrorMsg from "../components/ErrorMsg.vue";
 
 export default {
   name: "ProfileView",
-  components: {
-    ErrorMsg,
-  },
+  components: { ErrorMsg },
   data() {
     return {
       userName: localStorage.getItem("name") || "",
+      userPhoto: null,
       newUserName: "",
+      newPhoto: null,
       errormsg: "",
-      userId: localStorage.getItem("userId"),
-      token: localStorage.getItem("token")
+      successMsg: "",
+      savingName: false,
+      savingPhoto: false,
     };
+  },
+  computed: {
+    initials() {
+      return (this.userName || "U").slice(0, 2).toUpperCase();
+    },
   },
   methods: {
     async fetchUserProfile() {
+      const token = localStorage.getItem("token");
+      if (!token) { this.$router.push("/"); return; }
       try {
-        const token = localStorage.getItem("token");
-        if (!token) {
-          this.$router.push({ path: "/" });
-          return;
-        }
         const response = await axios.get("/users/photo", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
-        const { photo } = response.data;
         this.userName = localStorage.getItem("name");
+        const { photo } = response.data;
         this.userPhoto = photo ? `data:image/jpeg;base64,${photo}` : null;
-      } catch (error) {
-        console.error("Failed to fetch user profile:", error);
-        this.errormsg = "Failed to load user profile. Please try again later.";
+      } catch {
+        this.errormsg = "Failed to load profile.";
       }
     },
     handlePhotoUpload(event) {
-      const file = event.target.files[0];
-      if (file) {
-        this.newPhoto = file;
-      }
+      this.newPhoto = event.target.files[0] || null;
     },
     async updatePhoto() {
       if (!this.newPhoto) return;
+      this.savingPhoto = true;
+      this.errormsg = "";
+      this.successMsg = "";
       try {
         const token = localStorage.getItem("token");
         const formData = new FormData();
         formData.append("photo", this.newPhoto);
         await axios.put("/users/photo", formData, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { Authorization: `Bearer ${token}` },
         });
-        alert("Photo updated successfully!");
+        this.successMsg = "Photo updated!";
         this.newPhoto = null;
-        this.fetchUserProfile(); 
-      } catch (error) {
-        console.error("Failed to update photo:", error);
-        this.errormsg = "Failed to update photo. Please try again.";
+        await this.fetchUserProfile();
+      } catch {
+        this.errormsg = "Failed to update photo.";
+      } finally {
+        this.savingPhoto = false;
       }
     },
     async updateUsername() {
-      if (!this.newUserName || this.newUserName === this.userName) {
-        this.errormsg = "Please enter a different username";
-        return;
-      }
-
+      if (!this.newUserName || this.newUserName === this.userName) return;
+      this.savingName = true;
+      this.errormsg = "";
+      this.successMsg = "";
       try {
-        const response = await axios.put(
-          "/users/name",
-          { name: this.newUserName },
-          {
-            headers: {
-              Authorization: `Bearer ${this.token}`
-            }
-          }
-        );
-
-        // Check for specific error message
-        if (!response.ok) {
-          const error = await response.json();
-          this.errormsg = error.message; // will show "username already exists" msg
-          return;
-        }
-
-        // Update local storage with new username
+        const token = localStorage.getItem("token");
+        const response = await axios.put("/users/name", { name: this.newUserName }, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         localStorage.setItem("name", response.data.name);
         this.userName = response.data.name;
         this.newUserName = "";
-        this.errormsg = "";
-
-        // Emit event to update header/navbar display
-        this.$root.$emit("usernameUpdated", response.data.name);
-        
-        // Show success message
-        this.$toast.success("Username updated successfully!");
-        
-        // Emit event to update parent/header components
-        this.$root.$emit("usernameUpdated", response.data.name);
+        this.successMsg = "Username updated!";
       } catch (error) {
-        console.error("Error updating username:", error);
-        
-        if (error.response?.data?.message) {
-          this.errormsg = error.response.data.message;
-        } else if (error.response?.status === 409) {
-          this.errormsg = "Username already exists. Please choose another.";
-        } else {
-          this.errormsg = "Failed to update username. Please try again.";
-        }
+        if (error.response?.status === 409) this.errormsg = "Username already taken.";
+        else this.errormsg = error.response?.data || "Failed to update username.";
+      } finally {
+        this.savingName = false;
       }
-        
     },
-    refresh() {
-      this.fetchUserProfile();
-    },
-    logOut() {
-      localStorage.clear();
-      this.$router.push({ path: "/" });
-    },
-    newGroup() {
-      this.$router.push({ path: "/new-group" });
-    }
   },
   mounted() {
     this.fetchUserProfile();
@@ -182,90 +159,96 @@ export default {
 </script>
 
 <style scoped>
-.profile-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
+.page {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.page-header { margin-bottom: 28px; }
+.page-title { font-size: 28px; font-weight: 700; color: #1a1f36; margin: 0 0 6px; }
+.page-sub { font-size: 15px; color: #718096; margin: 0; }
+
+.profile-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.07);
 }
 
-.profile-header {
+.identity-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 20px;
-  width: 100%;
-  max-width: 800px;
+  margin-bottom: 8px;
+}
+.avatar-wrap { flex-shrink: 0; }
+.avatar-img {
+  width: 80px; height: 80px;
+  border-radius: 50%; object-fit: cover;
+}
+.avatar-initials {
+  width: 80px; height: 80px; border-radius: 50%;
+  background: linear-gradient(135deg, #4c6ef5, #7c3aed);
+  color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; font-weight: 700;
+}
+.identity-info { flex: 1; }
+.display-name { font-size: 22px; font-weight: 700; color: #1a1f36; margin: 0 0 4px; }
+.online-dot { font-size: 12px; color: #68d391; font-weight: 500; }
+
+.success-banner {
+  background: #f0fff4; border: 1px solid #9ae6b4; color: #276749;
+  border-radius: 8px; padding: 10px 14px; font-size: 13px; margin-top: 12px;
 }
 
-.photo-container {
-  width: 120px;
-  height: 120px;
-  border-radius: 50%;
-  overflow: hidden;
-  border: 1px solid #ccc;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background-color: #f5f5f5;
-}
+.divider { border: none; border-top: 1px solid #f0f2f5; margin: 24px 0; }
 
-.profile-photo {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+.section { margin-bottom: 24px; }
+.section:last-child { margin-bottom: 0; }
 
-.no-photo-placeholder {
-  color: #aaa;
+.field-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #4a5568;
+  margin-bottom: 8px;
+}
+.input-row { display: flex; gap: 10px; }
+.field-input {
+  flex: 1;
+  padding: 11px 14px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
   font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
 }
+.field-input:focus { border-color: #4c6ef5; }
 
-.username-container {
-  flex: 1;
+.save-btn {
+  padding: 11px 20px;
+  background: #4c6ef5; color: #fff;
+  border: none; border-radius: 10px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+  white-space: nowrap; transition: background 0.2s;
 }
+.save-btn:hover:not(:disabled) { background: #3b5bdb; }
+.save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.username {
-  margin: 0;
-  font-size: 24px;
-  font-weight: bold;
+.photo-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.upload-btn {
+  padding: 11px 18px;
+  background: #f0f2f5; color: #4a5568;
+  border-radius: 10px; font-size: 14px; font-weight: 500; cursor: pointer;
 }
+.upload-btn:hover { background: #e2e8f0; }
+.file-selected { font-size: 13px; color: #718096; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.update-username-section,
-.update-photo-section {
-  margin-top: 10px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-input {
-  padding: 8px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  flex: 1;
-  max-width: 300px;
-}
-
-.custom-button {
-  padding: 8px 16px;
-  background-color: transparent;
-  border: 1px solid #007bff;
-  color: #007bff;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-
-.custom-button:hover:not(:disabled) {
-  background-color: #007bff;
-  color: white;
-}
-
-.custom-button:disabled {
-  border-color: #cccccc;
-  color: #cccccc;
-  cursor: not-allowed;
-  background-color: transparent;
+@media (max-width: 480px) {
+  .profile-card { padding: 20px; }
+  .input-row { flex-direction: column; }
+  .save-btn { width: 100%; }
 }
 </style>

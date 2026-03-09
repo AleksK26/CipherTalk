@@ -1,31 +1,77 @@
 <script setup>
 import Sidebar from './components/Sidebar.vue'
-import { RouterView } from 'vue-router'
+import { RouterView, useRoute } from 'vue-router'
+import { computed } from 'vue'
+
+const route = useRoute()
+const showSidebar = computed(() => route.path !== '/')
 </script>
 <script>
 export default {}
 </script>
 
 <template>
-  <header class="navbar navbar-dark sticky-top bg-dark flex-md-nowrap p-0 shadow">
-    <a class="navbar-brand col-md-3 col-lg-2 me-0 px-3 fs-6" href="#/">WASAText</a>
-    <button class="navbar-toggler position-absolute d-md-none collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarMenu" aria-controls="sidebarMenu" aria-expanded="false" aria-label="Toggle navigation">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-  </header>
-
-  <div class="container-fluid">
-    <div class="row">
-      <Sidebar class="col-md-3 col-lg-2 d-md-block bg-light sidebar collapse" />
-      <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
-        <RouterView />
-      </main>
-    </div>
+  <div class="app-shell" :class="{ 'no-sidebar': !showSidebar }">
+    <Sidebar v-if="showSidebar" class="app-sidebar" />
+    <main class="app-main">
+      <RouterView />
+    </main>
   </div>
 </template>
 
 <style>
-body {
-  background: #f8f9fa;
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f7f8fc;
+  color: #1a1f36;
+}
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.app-shell.no-sidebar {
+  display: block;
+}
+
+.app-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
+/* Mobile: sidebar becomes a bottom tab bar */
+@media (max-width: 767px) {
+  .app-shell {
+    flex-direction: column;
+  }
+  .app-sidebar {
+    width: 100%;
+    height: auto;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    top: auto;
+    z-index: 100;
+  }
+  .app-main {
+    padding-bottom: 68px; /* space for bottom tab bar */
+  }
 }
 </style>

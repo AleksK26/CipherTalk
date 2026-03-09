@@ -2,7 +2,7 @@ log:
   level: debug
 
 db:
-  filename: C:/Users/hp pc/Desktop/WASA2024Project/service/database/decaf.db
+  filename: C:/Users/Admin/Desktop/WASA_AleksK_2024-25/service/database/decaf.db
 
 #  methodname: false
 #  json: false

@@ -1,11 +1,8 @@
 package api
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
-	"image"
-	"image/png"
 	"io"
 	"net/http"
 	"time"
@@ -21,6 +18,11 @@ func (rt *_router) startConversation(
 	ps httprouter.Params,
 	ctx reqcontext.RequestContext,
 ) {
+	userID, err := rt.getAuthenticatedUserID(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 	var req struct {
 		SenderID    string `json:"senderId"`
 		RecipientID string `json:"recipientId"`
@@ -31,6 +33,15 @@ func (rt *_router) startConversation(
 	}
 	if req.SenderID == "" || req.RecipientID == "" {
 		http.Error(w, "Missing senderId or recipientId", http.StatusBadRequest)
+		return
+	}
+	// Ensure the authenticated user is the sender
+	if req.SenderID != userID {
+		http.Error(w, "Forbidden: senderId must match authenticated user", http.StatusForbidden)
+		return
+	}
+	if req.SenderID == req.RecipientID {
+		http.Error(w, "Cannot start conversation with yourself", http.StatusBadRequest)
 		return
 	}
 	conversationID, err := rt.db.GetDirectConversation(req.SenderID, req.RecipientID)
@@ -157,6 +168,17 @@ func (rt *_router) sendMessage(
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+	// Verify sender is a member of this conversation
+	isMember, err := rt.db.IsUserInConversation(conversationID, senderID)
+	if err != nil {
+		ctx.Logger.WithError(err).Error("Failed to check conversation membership")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		http.Error(w, "Forbidden: You are not a member of this conversation", http.StatusForbidden)
+		return
+	}
 	messageID, err := generateNewID()
 	if err != nil {
 		ctx.Logger.WithError(err).Error("Failed to generate message ID")
@@ -189,28 +211,6 @@ func (rt *_router) sendMessage(
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(message); err != nil {
 		ctx.Logger.WithError(err).Error("Failed to encode response")
-	}
-	// Handle image attachment
-	if attachment != nil {
-		// Preserve the original image dimensions
-		img, _, err := image.Decode(bytes.NewReader(attachment))
-		if err != nil {
-			ctx.Logger.WithError(err).Error("Failed to process image")
-			http.Error(w, "Invalid image format", http.StatusBadRequest)
-			return
-		}
-
-		// Convert to proper fomat without crop
-		var buf bytes.Buffer
-		if err := png.Encode(&buf, img); err != nil {
-			ctx.Logger.WithError(err).Error("Failed to encode image")
-			http.Error(w, "Failed to process image", http.StatusInternalServerError)
-			return
-		}
-		attachment = buf.Bytes()
-
-		// Use the processed image
-		message.Attachment = attachment
 	}
 }
 
@@ -304,13 +304,24 @@ func (rt *_router) forwardMessage(
 		}
 		return
 	}
+	// Verify user is a member of the target conversation
+	isTargetMember, err := rt.db.IsUserInConversation(req.TargetConversationID, currentUserID)
+	if err != nil {
+		ctx.Logger.WithError(err).Error("Failed to check target conversation membership")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if !isTargetMember {
+		http.Error(w, "Forbidden: You are not a member of the target conversation", http.StatusForbidden)
+		return
+	}
 	newMessageID, err := generateNewID()
 	if err != nil {
 		ctx.Logger.WithError(err).Error("Failed to generate new message ID")
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	newContent := "<strong>Forwarded from " + req.ForwarderName + ":</strong> " + originalMessage.Content
+	newContent := "[Forwarded from " + req.ForwarderName + "] " + originalMessage.Content
 	newMessage := database.Message{
 		Id:             newMessageID,
 		ConversationId: req.TargetConversationID,
@@ -357,13 +368,13 @@ func (rt *_router) getConversationMembers(w http.ResponseWriter, r *http.Request
 
 	// Check if user is in conversation
 	isInConv, err := rt.db.IsUserInConversation(conversationID, userID)
-	if !isInConv {
+	if err != nil {
 		ctx.Logger.WithError(err).Error("Failed to check conversation membership")
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 	if !isInConv {
-		http.Error(w, "Forbidden", http.StatusForbidden)
+		http.Error(w, "Forbidden: You are not a member of this conversation", http.StatusForbidden)
 		return
 	}
 
@@ -390,8 +401,12 @@ func (rt *_router) leaveConversation(w http.ResponseWriter, r *http.Request, ps 
 
 	// Check if user is in conversation
 	isInConv, err := rt.db.IsUserInConversation(conversationID, userID)
-	if !isInConv {
+	if err != nil {
 		ctx.Logger.WithError(err).Error("Failed to check conversation membership")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if !isInConv {
 		http.Error(w, "Forbidden: Not in conversation", http.StatusForbidden)
 		return
 	}

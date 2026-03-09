@@ -7,7 +7,7 @@ import (
 )
 
 func (db *appdbimpl) CreateUser(u User) (User, error) {
-	_, err := db.c.Exec("INSERT INTO users(id, name, photo) VALUES (?, ?, ?)", u.Id, u.Name, u.Photo)
+	_, err := db.c.Exec("INSERT INTO users(id, name, photo, password) VALUES (?, ?, ?, ?)", u.Id, u.Name, u.Photo, u.Password)
 	if err != nil {
 		var existing User
 		if errCheck := db.c.QueryRow("SELECT id, name FROM users WHERE name = ?", u.Name).Scan(&existing.Id, &existing.Name); errCheck != nil {
@@ -22,7 +22,7 @@ func (db *appdbimpl) CreateUser(u User) (User, error) {
 
 func (db *appdbimpl) GetUserByName(name string) (User, error) {
 	var u User
-	if err := db.c.QueryRow("SELECT id, name FROM users WHERE name = ?", name).Scan(&u.Id, &u.Name); err != nil {
+	if err := db.c.QueryRow("SELECT id, name, password FROM users WHERE name = ?", name).Scan(&u.Id, &u.Name, &u.Password); err != nil {
 		if err == sql.ErrNoRows {
 			return u, ErrUserDoesNotExist
 		}

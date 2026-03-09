@@ -13,22 +13,28 @@ func (rt *_router) commentMessage(
 	ps httprouter.Params,
 	ctx reqcontext.RequestContext,
 ) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+	userID, err := rt.getAuthenticatedUserID(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	userID, err := rt.getAuthenticatedUserID(r)
-
+	conversationID := ps.ByName("conversationId")
+	// Verify user is a member of this conversation
+	isMember, err := rt.db.IsUserInConversation(conversationID, userID)
 	if err != nil {
-		http.Error(w, "Unauthorized: ", http.StatusUnauthorized)
+		ctx.Logger.WithError(err).Error("Failed to check conversation membership")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		http.Error(w, "Forbidden: You are not a member of this conversation", http.StatusForbidden)
 		return
 	}
 
 	commentID, err := generateNewID()
-
 	if err != nil {
-		ctx.Logger.WithError(err).Error("Failed to generate conversation ID")
+		ctx.Logger.WithError(err).Error("Failed to generate comment ID")
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -47,16 +53,22 @@ func (rt *_router) uncommentMessage(
 	ps httprouter.Params,
 	ctx reqcontext.RequestContext,
 ) {
-
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+	userID, err := rt.getAuthenticatedUserID(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	userID, err := rt.getAuthenticatedUserID(r)
-
+	conversationID := ps.ByName("conversationId")
+	// Verify user is a member of this conversation
+	isMember, err := rt.db.IsUserInConversation(conversationID, userID)
 	if err != nil {
-		http.Error(w, "Unauthorized: ", http.StatusUnauthorized)
+		ctx.Logger.WithError(err).Error("Failed to check conversation membership")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		http.Error(w, "Forbidden: You are not a member of this conversation", http.StatusForbidden)
 		return
 	}
 

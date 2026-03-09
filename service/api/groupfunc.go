@@ -17,12 +17,21 @@ func (rt *_router) createGroup(
 	ps httprouter.Params,
 	ctx reqcontext.RequestContext,
 ) {
-	err := r.ParseMultipartForm(10 << 20)
+	creatorID, err := rt.getAuthenticatedUserID(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	err = r.ParseMultipartForm(10 << 20)
 	if err != nil {
 		http.Error(w, "Failed to parse form data", http.StatusBadRequest)
 		return
 	}
 	name := r.FormValue("name")
+	if len(name) < 3 || len(name) > 16 {
+		http.Error(w, "Group name must be between 3 and 16 characters", http.StatusBadRequest)
+		return
+	}
 	membersStr := r.FormValue("members")
 	var members []string
 	err = json.Unmarshal([]byte(membersStr), &members)
@@ -48,7 +57,7 @@ func (rt *_router) createGroup(
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-	err = rt.db.CreateGroupConversation(conversationID, members, name, photo)
+	err = rt.db.CreateGroupConversation(conversationID, members, name, photo, creatorID)
 	if err != nil {
 		ctx.Logger.WithError(err).Error("Failed to create new conversation")
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -92,9 +101,20 @@ func (rt *_router) getGroup(
 	ctx reqcontext.RequestContext,
 ) {
 	groupID := ps.ByName("groupId")
-	_, err := rt.getAuthenticatedUserID(r)
+	userID, err := rt.getAuthenticatedUserID(r)
 	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	// Verify user is a member of this group
+	isMember, err := rt.db.IsUserInConversation(groupID, userID)
+	if err != nil {
+		ctx.Logger.WithError(err).Error("Failed to check group membership")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if !isMember {
+		http.Error(w, "Forbidden: You are not a member of this group", http.StatusForbidden)
 		return
 	}
 	group, dbErr := rt.db.GetGroupInfo(groupID)
@@ -139,16 +159,22 @@ func (rt *_router) setGroupName(
 	ps httprouter.Params,
 	ctx reqcontext.RequestContext,
 ) {
-	if r.Method != http.MethodPut {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	_, err := rt.getAuthenticatedUserID(r)
+	userID, err := rt.getAuthenticatedUserID(r)
 	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 	groupID := ps.ByName("groupId")
+	isAdmin, err := rt.db.IsGroupAdmin(groupID, userID)
+	if err != nil {
+		ctx.Logger.WithError(err).Error("Failed to check admin status")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if !isAdmin {
+		http.Error(w, "Forbidden: Only group admins can change the group name", http.StatusForbidden)
+		return
+	}
 	var req UpdateGroupRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -178,13 +204,19 @@ func (rt *_router) setGroupPhoto(
 	ctx reqcontext.RequestContext,
 ) {
 	groupID := ps.ByName("groupId")
-	if r.Method != http.MethodPut {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	_, err := rt.getAuthenticatedUserID(r)
+	userID, err := rt.getAuthenticatedUserID(r)
 	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	isAdmin, err := rt.db.IsGroupAdmin(groupID, userID)
+	if err != nil {
+		ctx.Logger.WithError(err).Error("Failed to check admin status")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if !isAdmin {
+		http.Error(w, "Forbidden: Only group admins can change the group photo", http.StatusForbidden)
 		return
 	}
 	err = r.ParseMultipartForm(10 * 1024 * 1024)
@@ -279,9 +311,19 @@ func (rt *_router) leaveGroup(
 
 func (rt *_router) addToGroup(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx reqcontext.RequestContext) {
 	groupID := ps.ByName("groupId")
-	_, err := rt.getAuthenticatedUserID(r)
+	userID, err := rt.getAuthenticatedUserID(r)
 	if err != nil {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	isAdmin, err := rt.db.IsGroupAdmin(groupID, userID)
+	if err != nil {
+		ctx.Logger.WithError(err).Error("Failed to check admin status")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if !isAdmin {
+		http.Error(w, "Forbidden: Only group admins can add members", http.StatusForbidden)
 		return
 	}
 	var request struct {
@@ -298,4 +340,36 @@ func (rt *_router) addToGroup(w http.ResponseWriter, r *http.Request, ps httprou
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (rt *_router) removeMember(w http.ResponseWriter, r *http.Request, ps httprouter.Params, ctx reqcontext.RequestContext) {
+	groupID := ps.ByName("groupId")
+	targetUserID := ps.ByName("userId")
+	callerID, err := rt.getAuthenticatedUserID(r)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	isAdmin, err := rt.db.IsGroupAdmin(groupID, callerID)
+	if err != nil {
+		ctx.Logger.WithError(err).Error("Failed to check admin status")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	if !isAdmin {
+		http.Error(w, "Forbidden: Only admins can remove members", http.StatusForbidden)
+		return
+	}
+	// Prevent removing another admin
+	targetIsAdmin, _ := rt.db.IsGroupAdmin(groupID, targetUserID)
+	if targetIsAdmin && callerID != targetUserID {
+		http.Error(w, "Cannot remove another admin", http.StatusForbidden)
+		return
+	}
+	if err := rt.db.RemoveUserFromGroup(groupID, targetUserID); err != nil {
+		ctx.Logger.WithError(err).Error("Failed to remove member")
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
 }

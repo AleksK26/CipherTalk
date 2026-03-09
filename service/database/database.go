@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 var ErrUserDoesNotExist = errors.New("User does not exist")
@@ -14,11 +15,20 @@ var ErrMessageDoesNotExist = errors.New("Message does not exist")
 var ErrCommentDoesNotExist = errors.New("Comment does not exist")
 var ErrUnauthorizedToDeleteMessage = errors.New("Unauthorized To Delete Message")
 var ErrGroupDoesNotExist = errors.New("Group does not exist")
+var ErrWrongPassword = errors.New("Wrong password")
 
 type User struct {
+	Id       string `json:"id"`
+	Name     string `json:"name"`
+	Photo    []byte `json:"photo,omitempty"`
+	Password string `json:"-"`
+}
+
+type GroupMember struct {
 	Id    string `json:"id"`
 	Name  string `json:"name"`
 	Photo []byte `json:"photo,omitempty"`
+	Role  string `json:"role"`
 }
 
 type Group struct {
@@ -71,7 +81,8 @@ type ReadReceipt struct {
 }
 
 type AppDatabase interface {
-	GetGroupMemberDetails(groupId string) ([]User, error)
+	GetGroupMemberDetails(groupId string) ([]GroupMember, error)
+	IsGroupAdmin(groupID, userID string) (bool, error)
 	Ping() error
 	GetUserByName(name string) (User, error)
 	CreateUser(u User) (User, error)
@@ -90,13 +101,14 @@ type AppDatabase interface {
 	GetUsersPhoto(userID string) (User, error)
 	DeleteMessage(conversationID, messageID, userID string) error
 	GetMessage(messageID, userID string) (Message, error)
-	CreateGroupConversation(conversationID string, memberIDs []string, name string, photo []byte) error
+	CreateGroupConversation(conversationID string, memberIDs []string, name string, photo []byte, creatorID string) error
 	GetMyGroups(userID string) ([]Conversation, error)
 	GetGroupInfo(groupID string) (Conversation, error)
 	UpdateGroupName(groupId, newName string) error
 	UpdateGroupPhoto(groupID string, photo []byte) error
 	LeaveGroup(groupID, userID string) error
 	AddUserToGroup(conversationID string, userID string) error
+	RemoveUserFromGroup(groupID, userID string) error
 	CommentMessage(commentID, messageID, authorID string) error
 	UncommentMessage(messageID, authorID string) error
 	MarkMessagesAsRead(conversationID, userID string) error
@@ -189,7 +201,13 @@ func New(db *sql.DB) (AppDatabase, error) {
 		// Adding index queries for better performance
 		indexQueries := []string{
 			`CREATE INDEX IF NOT EXISTS idx_conversation_members_user ON conversation_members(userId)`,
-			`CREATE INDEX IF NOT EXISTS idx_conversation_members_cpnv ON conversation_members(conversationId)`,
+			`CREATE INDEX IF NOT EXISTS idx_conversation_members_conv ON conversation_members(conversationId)`,
+			`CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversationId)`,
+			`CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(conversationId, timestamp)`,
+			`CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(senderId)`,
+			`CREATE INDEX IF NOT EXISTS idx_read_receipts_message ON read_receipts(messageId)`,
+			`CREATE INDEX IF NOT EXISTS idx_comments_message ON comments(messageId)`,
+			`CREATE INDEX IF NOT EXISTS idx_users_name ON users(name)`,
 		}
 
 		for _, q := range indexQueries {
@@ -202,6 +220,21 @@ func New(db *sql.DB) (AppDatabase, error) {
 	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
+
+	// Schema migrations — safe to run on both new and existing databases
+	migrations := []string{
+		`ALTER TABLE users ADD COLUMN password TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE conversation_members ADD COLUMN role TEXT NOT NULL DEFAULT 'member'`,
+	}
+	for _, m := range migrations {
+		if _, err := db.Exec(m); err != nil {
+			// SQLite returns "duplicate column name" when column already exists — ignore that
+			if !strings.Contains(err.Error(), "duplicate column name") {
+				return nil, fmt.Errorf("migration error: %w", err)
+			}
+		}
+	}
+
 	return &appdbimpl{c: db}, nil
 }
 

@@ -31,20 +31,34 @@ func (db *appdbimpl) GetDirectConversation(senderID, recipientID string) (string
 }
 
 func (db *appdbimpl) CreateDirectConversation(conversationID, senderID, recipientID string) error {
-	_, err := db.c.Exec(`
+	tx, err := db.c.Begin()
+	if err != nil {
+		return fmt.Errorf("error starting transaction: %w", err)
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	_, err = tx.Exec(`
 		INSERT INTO conversations (id, name, type, created_at, conversationPhoto)
 		VALUES (?, '', 'direct', ?, '')
 	`, conversationID, time.Now().Format(time.RFC3339))
 	if err != nil {
 		return fmt.Errorf("error creating new conversation: %w", err)
 	}
-	_, err = db.c.Exec(`
+	_, err = tx.Exec(`
 		INSERT INTO conversation_members (conversationId, userId)
 		VALUES (?, ?), (?, ?)
 	`, conversationID, senderID,
 		conversationID, recipientID)
 	if err != nil {
 		return fmt.Errorf("error adding members to conversation_members: %w", err)
+	}
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("error committing transaction: %w", err)
 	}
 	return nil
 }
@@ -191,23 +205,24 @@ func (db *appdbimpl) GetConversationDetails(conversationID, currentUserID string
 
 func (db *appdbimpl) GetMessagesForConversation(conversationID string) ([]Message, error) {
 	query := `
-SELECT 
-	m.id, 
-	m.conversationId, 
-	m.senderId, 
-	m.content, 
-	m.timestamp, 
+SELECT
+	m.id,
+	m.conversationId,
+	m.senderId,
+	m.content,
+	m.timestamp,
 	m.attachment,
 	m.replyTo,
 	u.name AS senderName,
 	u.photo AS senderPhoto,
-	((SELECT COUNT(*) FROM conversation_members WHERE conversationId = m.conversationId) - 1) AS totalRecipients,
-	(SELECT COUNT(*) FROM read_receipts WHERE messageId = m.id AND readAt IS NOT NULL) AS readCount,
-	COUNT(c.id) AS reaction_count,
+	COUNT(DISTINCT c.id) AS reaction_count,
 	GROUP_CONCAT(DISTINCT u2.name) AS reacting_user_names,
 	IFNULL(r.content, '') AS replyContent,
 	IFNULL(ru.name, '') AS replySenderName,
-	r.attachment AS replyAttachment
+	r.attachment AS replyAttachment,
+	(SELECT COUNT(*) FROM conversation_members WHERE conversationId = m.conversationId AND userId != m.senderId) AS recipientCount,
+	(SELECT COUNT(*) FROM read_receipts WHERE messageId = m.id AND userId != m.senderId AND deliveredAt IS NOT NULL) AS deliveredCount,
+	(SELECT COUNT(*) FROM read_receipts WHERE messageId = m.id AND userId != m.senderId AND readAt IS NOT NULL) AS readCountExSender
 FROM messages m
 JOIN users u ON m.senderId = u.id
 LEFT JOIN comments c ON m.id = c.messageId
@@ -227,7 +242,7 @@ ORDER BY m.timestamp ASC;
 	for rows.Next() {
 		var msg Message
 		var senderPhoto []byte
-		var totalRecipients, readCount, reactionCount int
+		var reactionCount, recipientCount, deliveredCount, readCountExSender int
 		var reactingUserNames sql.NullString
 		err := rows.Scan(
 			&msg.Id,
@@ -239,13 +254,14 @@ ORDER BY m.timestamp ASC;
 			&msg.ReplyTo,
 			&msg.SenderName,
 			&senderPhoto,
-			&totalRecipients,
-			&readCount,
 			&reactionCount,
 			&reactingUserNames,
 			&msg.ReplyContent,
 			&msg.ReplySenderName,
 			&msg.ReplyAttachment,
+			&recipientCount,
+			&deliveredCount,
+			&readCountExSender,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("error scanning message row: %w", err)
@@ -259,34 +275,15 @@ ORDER BY m.timestamp ASC;
 		} else {
 			msg.ReactingUserNames = []string{}
 		}
+		// Delivered: at least one recipient has deliveredAt
+		msg.IsDelivered = deliveredCount > 0
+		// Read: all recipients have readAt
+		msg.IsRead = recipientCount > 0 && readCountExSender >= recipientCount
 		// Set status string for legacy compatibility
-		if totalRecipients > 0 && readCount >= totalRecipients {
+		if msg.IsRead {
 			msg.Status = "✓✓"
 		} else {
 			msg.Status = "✓"
-		}
-		// Set isDelivered and isRead booleans (exclude sender from receipts)
-		// For direct: delivered/read if recipient has deliveredAt/readAt
-		// For group: delivered if at least one recipient (not sender) has deliveredAt, read if all recipients (not sender) have readAt
-		var deliveredCount, readCountExSender, recipientCount int
-		// Counting only recipient not sender
-		err = db.c.QueryRow(`SELECT COUNT(*) FROM conversation_members WHERE conversationId = ? AND userId != ?`, msg.ConversationId, msg.SenderId).Scan(&recipientCount)
-		if err != nil {
-			recipientCount = 0
-		}
-		// Delivered: at least one recipient (not sender) has deliveredAt
-		err = db.c.QueryRow(`SELECT COUNT(*) FROM read_receipts WHERE messageId = ? AND userId != ? AND deliveredAt IS NOT NULL`, msg.Id, msg.SenderId).Scan(&deliveredCount)
-		if err != nil {
-			msg.IsDelivered = false
-		} else {
-			msg.IsDelivered = deliveredCount > 0
-		}
-		// Read: all recipients (not sender) have readAt
-		err = db.c.QueryRow(`SELECT COUNT(*) FROM read_receipts WHERE messageId = ? AND userId != ? AND readAt IS NOT NULL`, msg.Id, msg.SenderId).Scan(&readCountExSender)
-		if err != nil {
-			msg.IsRead = false
-		} else {
-			msg.IsRead = recipientCount > 0 && readCountExSender == recipientCount
 		}
 		messages = append(messages, msg)
 	}
@@ -298,38 +295,39 @@ ORDER BY m.timestamp ASC;
 
 func (db *appdbimpl) GetMyConversations(userID string) ([]Conversation, error) {
 	query := `
-	SELECT 
+	SELECT
 		c.id,
-		CASE 
-			WHEN c.type = 'direct' THEN 
-				(SELECT u.name 
-				FROM users u 
-				JOIN conversation_members cm2 
-				ON u.id = cm2.userId 
+		CASE
+			WHEN c.type = 'direct' THEN
+				(SELECT u.name
+				FROM users u
+				JOIN conversation_members cm2
+				ON u.id = cm2.userId
 				WHERE cm2.conversationId = c.id AND u.id != ?)
 			ELSE c.name
 		END AS conversation_name,
 		c.type,
 		c.created_at,
-		CASE 
-			WHEN c.type = 'direct' THEN 
-				(SELECT u.photo 
-				FROM users u 
-				JOIN conversation_members cm2 
-				ON u.id = cm2.userId 
+		CASE
+			WHEN c.type = 'direct' THEN
+				(SELECT u.photo
+				FROM users u
+				JOIN conversation_members cm2
+				ON u.id = cm2.userId
 				WHERE cm2.conversationId = c.id AND u.id != ?)
 			ELSE c.conversationPhoto
 		END AS conversation_photo,
 		(SELECT m.id FROM messages m WHERE m.conversationId = c.id ORDER BY m.timestamp DESC LIMIT 1) AS last_message_id,
 		(SELECT m.content FROM messages m WHERE m.conversationId = c.id ORDER BY m.timestamp DESC LIMIT 1) AS last_message_content,
 		(SELECT m.timestamp FROM messages m WHERE m.conversationId = c.id ORDER BY m.timestamp DESC LIMIT 1) AS last_message_timestamp,
-		(SELECT u.name FROM messages m 
-		JOIN users u ON m.senderId = u.id 
-		WHERE m.conversationId = c.id 
+		(SELECT u.name FROM messages m
+		JOIN users u ON m.senderId = u.id
+		WHERE m.conversationId = c.id
 		ORDER BY m.timestamp DESC LIMIT 1) AS last_message_sender_name,
-		(SELECT m.attachment FROM messages m   -- Fetch actual attachment data
-		WHERE m.conversationId = c.id 
-		ORDER BY m.timestamp DESC LIMIT 1) AS last_message_attachment
+		(SELECT m.attachment FROM messages m
+		WHERE m.conversationId = c.id
+		ORDER BY m.timestamp DESC LIMIT 1) AS last_message_attachment,
+		(SELECT GROUP_CONCAT(cm3.userId) FROM conversation_members cm3 WHERE cm3.conversationId = c.id) AS member_ids
 	FROM conversations c
 	JOIN conversation_members cm ON c.id = cm.conversationId
 	WHERE cm.userId = ?
@@ -350,6 +348,7 @@ func (db *appdbimpl) GetMyConversations(userID string) ([]Conversation, error) {
 			lastMessageSender     sql.NullString
 			lastMessageAttachment []byte
 			convPhoto             sql.NullString
+			memberIDs             sql.NullString
 		)
 		err := rows.Scan(
 			&conv.Id,
@@ -362,6 +361,7 @@ func (db *appdbimpl) GetMyConversations(userID string) ([]Conversation, error) {
 			&lastMessageTimestamp,
 			&lastMessageSender,
 			&lastMessageAttachment,
+			&memberIDs,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("error scanning conversation: %w", err)
@@ -379,11 +379,11 @@ func (db *appdbimpl) GetMyConversations(userID string) ([]Conversation, error) {
 				Attachment: lastMessageAttachment,
 			}
 		}
-		members, err := db.GetConversationMembers(conv.Id)
-		if err != nil {
-			return nil, fmt.Errorf("error fetching conversation members: %w", err)
+		if memberIDs.Valid && memberIDs.String != "" {
+			conv.Members = strings.Split(memberIDs.String, ",")
+		} else {
+			conv.Members = []string{}
 		}
-		conv.Members = members
 		conversations = append(conversations, conv)
 	}
 	if err := rows.Err(); err != nil {

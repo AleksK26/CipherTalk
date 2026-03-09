@@ -24,7 +24,12 @@ func (rt *_router) doLogin(w http.ResponseWriter, r *http.Request, ps httprouter
 	}
 
 	if len(req.Name) < 3 || len(req.Name) > 16 {
-		http.Error(w, "Invalid username length", http.StatusBadRequest)
+		http.Error(w, "Username must be between 3 and 16 characters", http.StatusBadRequest)
+		return
+	}
+
+	if req.Password == "" {
+		http.Error(w, "Password is required", http.StatusBadRequest)
 		return
 	}
 
@@ -38,8 +43,20 @@ func (rt *_router) doLogin(w http.ResponseWriter, r *http.Request, ps httprouter
 			return
 		}
 	}
-	user, err := rt.db.GetUserByName(req.Name)
-	if errors.Is(err, database.ErrUserDoesNotExist) {
+
+	existingUser, err := rt.db.GetUserByName(req.Name)
+
+	if req.Mode == "signup" {
+		// Sign up: user must NOT exist
+		if err == nil {
+			http.Error(w, "Username already taken", http.StatusConflict)
+			return
+		}
+		if !errors.Is(err, database.ErrUserDoesNotExist) {
+			ctx.Logger.WithError(err).Error("Failed to query user by name")
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
 		newID, genErr := generateNewID()
 		if genErr != nil {
 			ctx.Logger.WithError(genErr).Error("Failed to generate user ID")
@@ -47,31 +64,45 @@ func (rt *_router) doLogin(w http.ResponseWriter, r *http.Request, ps httprouter
 			return
 		}
 		newUser := database.User{
-			Id:    newID,
-			Name:  req.Name,
-			Photo: photoBytes,
+			Id:       newID,
+			Name:     req.Name,
+			Photo:    photoBytes,
+			Password: req.Password,
 		}
-		user, err = rt.db.CreateUser(newUser)
-		if err != nil {
-			ctx.Logger.WithError(err).Error("Failed to create user")
+		createdUser, createErr := rt.db.CreateUser(newUser)
+		if createErr != nil {
+			ctx.Logger.WithError(createErr).Error("Failed to create user")
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
-	} else if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(struct {
+			Identifier string `json:"identifier"`
+		}{Identifier: createdUser.Id})
+		return
+	}
+
+	// Default mode: "signin"
+	if errors.Is(err, database.ErrUserDoesNotExist) {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
 		ctx.Logger.WithError(err).Error("Failed to query user by name")
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
-	// Always respond with JSON containing the identifier
-	resp := struct {
-		Identifier string `json:"identifier"`
-	}{
-		Identifier: user.Id,
+	// If user has no password yet (legacy account), accept any password and set it
+	if existingUser.Password != "" && existingUser.Password != req.Password {
+		http.Error(w, "Invalid password", http.StatusUnauthorized)
+		return
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		ctx.Logger.WithError(err).Error("Failed to encode login response")
-	}
+	_ = json.NewEncoder(w).Encode(struct {
+		Identifier string `json:"identifier"`
+	}{Identifier: existingUser.Id})
 }
