@@ -1,25 +1,30 @@
-app = "ciphertalk-api"
-primary_region = "ams"
+# fly.toml app configuration file generated for ciphertalk-api on 2026-03-09T20:08:46+01:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'ciphertalk-api'
+primary_region = 'ams'
 
 [build]
-  dockerfile = "Dockerfile.backend"
+  dockerfile = 'Dockerfile.backend'
 
 [env]
-  # DB path on the persistent volume
-  WEBAPI_DB_FILENAME = "/data/ciphertalk.db"
+  WEBAPI_DB_FILENAME = '/data/ciphertalk.db'
+
+[[mounts]]
+  source = 'db_data'
+  destination = '/data'
 
 [http_service]
   internal_port = 3000
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
 
-[[mounts]]
-  source = "db_data"
-  destination = "/data"
-
 [[vm]]
-  memory = "256mb"
-  cpu_kind = "shared"
+  memory = '256mb'
+  cpu_kind = 'shared'
   cpus = 1
+  memory_mb = 256
