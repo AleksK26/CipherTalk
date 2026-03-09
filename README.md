@@ -4,6 +4,8 @@ A secure, real-time web chat application with direct messaging, group chats, fil
 
 Built as a university project for the [Web and Software Architecture](http://gamificationlab.uniroma1.it/en/wasa/) course at Sapienza University of Rome.
 
+**Live demo:** https://ciphertalk.pages.dev
+
 ---
 
 ## Features
