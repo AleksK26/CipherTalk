@@ -1,47 +1,21 @@
 <script setup>
 import Sidebar from './components/Sidebar.vue'
-import { RouterView, RouterLink, useRoute, useRouter } from 'vue-router'
+import { RouterView, useRoute } from 'vue-router'
 import { computed } from 'vue'
 
 const route = useRoute()
-const router = useRouter()
-const showNav = computed(() => route.path !== '/')
-
-function logOut() {
-  localStorage.clear()
-  router.push('/')
-}
+const showSidebar = computed(() => route.path !== '/')
+</script>
+<script>
+export default {}
 </script>
 
 <template>
-  <div class="app-shell" :class="{ 'no-sidebar': !showNav }">
-    <!-- Desktop sidebar (hidden on mobile via CSS) -->
-    <Sidebar v-if="showNav" />
-
-    <!-- Main content area -->
+  <div class="app-shell" :class="{ 'no-sidebar': !showSidebar }">
+    <Sidebar v-if="showSidebar" class="app-sidebar" />
     <main class="app-main">
       <RouterView />
     </main>
-
-    <!-- Mobile bottom tab bar — direct child, no display:contents wrapping -->
-    <nav v-if="showNav" class="mobile-tab-bar">
-      <RouterLink to="/home" class="tab-item" active-class="tab-active">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-        <span>Chats</span>
-      </RouterLink>
-      <RouterLink to="/search" class="tab-item" active-class="tab-active">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-        <span>Search</span>
-      </RouterLink>
-      <RouterLink to="/me" class="tab-item" active-class="tab-active">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-        <span>Profile</span>
-      </RouterLink>
-      <button class="tab-item tab-logout" @click="logOut">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-        <span>Logout</span>
-      </button>
-    </nav>
   </div>
 </template>
 
@@ -62,88 +36,41 @@ html, body {
   height: 100%;
 }
 
-/* ─── Desktop layout ─────────────────────────────── */
 .app-shell {
   display: flex;
-  flex-direction: row;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .app-shell.no-sidebar {
   display: block;
 }
 
+.app-sidebar {
+  /* display:contents wrapper — sizing handled by nav elements inside Sidebar.vue */
+}
+
 .app-main {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   overflow-y: auto;
 }
 
-/* Desktop: hide mobile tab bar */
-.mobile-tab-bar {
-  display: none;
-}
-
-/* ─── Mobile layout ──────────────────────────────── */
 @media (max-width: 767px) {
   .app-shell {
-    display: block;
-    min-height: 100vh;
-  }
-
-  .app-main {
-    /* leave room for the fixed 60px tab bar at bottom */
-    padding-bottom: 60px;
-  }
-
-  /* Mobile bottom tab bar */
-  .mobile-tab-bar {
-    display: flex;
-    flex-direction: row;
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 60px;
-    background: #1a1f36;
-    border-top: 1px solid rgba(255,255,255,0.1);
-    align-items: stretch;
-    z-index: 9999;
-  }
-
-  .tab-item {
-    flex: 1;
-    display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 3px;
-    color: #718096;
-    text-decoration: none;
-    font-size: 10px;
-    font-weight: 500;
-    border: none;
-    background: none;
-    cursor: pointer;
-    transition: color 0.15s;
-    padding: 0;
+    height: 100vh;
+    height: 100dvh;
   }
-
-  .tab-item svg {
-    width: 20px;
-    height: 20px;
+  .app-sidebar {
+    display: contents;
   }
-
-  .tab-item:hover { color: #a0aec0; }
-
-  .tab-active {
-    color: #7b9ff9 !important;
+  .app-main {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px) + 8px);
   }
-
-  .tab-logout {
-    color: #fc8181;
-  }
-
-  .tab-logout:hover { color: #feb2b2; }
 }
 </style>
