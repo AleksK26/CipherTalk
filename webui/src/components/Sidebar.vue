@@ -1,7 +1,5 @@
 <template>
-  <div class="sidebar-root">
-  <!-- Desktop: vertical sidebar -->
-  <nav class="sidebar desktop-sidebar">
+  <nav class="sidebar">
     <div class="brand">
       <span class="brand-icon">🔐</span>
       <span class="brand-name">CipherTalk</span>
@@ -49,27 +47,6 @@
       </button>
     </div>
   </nav>
-
-  <!-- Mobile: bottom tab bar -->
-  <nav class="sidebar mobile-tabs">
-    <RouterLink to="/home" class="tab-item" active-class="tab-active">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-      <span>Chats</span>
-    </RouterLink>
-    <RouterLink to="/search" class="tab-item" active-class="tab-active">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-      <span>Search</span>
-    </RouterLink>
-    <RouterLink to="/me" class="tab-item" active-class="tab-active">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-      <span>Profile</span>
-    </RouterLink>
-    <button class="tab-item tab-logout" @click="logOut">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-      <span>Logout</span>
-    </button>
-  </nav>
-  </div>
 </template>
 
 <script>
@@ -97,13 +74,7 @@ export default {
 </script>
 
 <style scoped>
-/* ─── Root wrapper ───────────────────────────────────────────────── */
-.sidebar-root {
-  display: contents;
-}
-
-/* ─── Desktop Sidebar ────────────────────────────────────────────── */
-.desktop-sidebar {
+.sidebar {
   width: 240px;
   flex-shrink: 0;
   position: sticky;
@@ -204,10 +175,7 @@ export default {
   justify-content: center;
   flex-shrink: 0;
 }
-.nav-icon svg {
-  width: 18px;
-  height: 18px;
-}
+.nav-icon svg { width: 18px; height: 18px; }
 
 .sidebar-footer {
   padding: 12px 10px 16px;
@@ -233,57 +201,8 @@ export default {
   color: #feb2b2;
 }
 
-/* ─── Mobile Bottom Tabs ─────────────────────────────────────────── */
-.mobile-tabs {
-  display: none;
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 60px;
-  background: #1a1f36;
-  border-top: 1px solid rgba(255,255,255,0.1);
-  flex-direction: row;
-  align-items: stretch;
-  z-index: 100;
-}
-
-.tab-item {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  color: #718096;
-  text-decoration: none;
-  font-size: 10px;
-  font-weight: 500;
-  border: none;
-  background: none;
-  cursor: pointer;
-  transition: color 0.15s;
-}
-.tab-item svg { width: 20px; height: 20px; }
-.tab-item:hover { color: #a0aec0; }
-.tab-active { color: #7b9ff9 !important; }
-.tab-logout { color: #fc8181; }
-.tab-logout:hover { color: #feb2b2; }
-
-/* ─── Responsive ─────────────────────────────────────────────────── */
+/* Hide entirely on mobile — mobile nav is in App.vue */
 @media (max-width: 767px) {
-  .desktop-sidebar {
-    display: none !important;
-    width: 0 !important;
-    height: 0 !important;
-    overflow: hidden !important;
-  }
-  .mobile-tabs {
-    display: flex !important;
-    bottom: env(safe-area-inset-bottom, 0px);
-  }
-}
-@media (min-width: 768px) {
-  .mobile-tabs { display: none !important; }
+  .sidebar { display: none; }
 }
 </style>
