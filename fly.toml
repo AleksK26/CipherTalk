@@ -10,7 +10,7 @@ primary_region = 'ams'
   dockerfile = 'Dockerfile.backend'
 
 [env]
-  WEBAPI_DB_FILENAME = '/data/ciphertalk.db'
+  CFG_DB_FILENAME = '/data/ciphertalk.db'
 
 [[mounts]]
   source = 'db_data'
