@@ -186,4 +186,12 @@ export default {
   transition: background 0.2s;
 }
 .chat-btn:hover { background: #c5d5fc; }
+
+@media (max-width: 480px) {
+  .page { padding: 20px 12px; }
+  .page-title { font-size: 22px; }
+  .search-wrap { padding: 16px; }
+  .search-row { flex-direction: column; gap: 8px; }
+  .search-btn { width: 100%; }
+}
 </style>

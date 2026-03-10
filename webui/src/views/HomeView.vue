@@ -226,11 +226,13 @@ export default {
 .no-msg { color: #cbd5e0; font-style: italic; }
 .attach-hint { }
 
-@media (max-width: 480px) {
+@media (max-width: 767px) {
   .home { padding: 20px 12px; }
   .home-header { flex-direction: column; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
   .header-title { font-size: 22px; }
   .header-actions { width: 100%; justify-content: flex-start; }
   .action-btn { font-size: 13px; padding: 7px 12px; }
+  .logout-btn { display: none; } /* Logout is in the mobile tab bar */
+  .conv-item { padding: 12px 14px; }
 }
 </style>

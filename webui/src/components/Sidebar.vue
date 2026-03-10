@@ -272,10 +272,18 @@ export default {
 
 /* ─── Responsive ─────────────────────────────────────────────────── */
 @media (max-width: 767px) {
-  .desktop-sidebar { display: none; }
-  .mobile-tabs { display: flex; }
+  .desktop-sidebar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+  .mobile-tabs {
+    display: flex !important;
+    bottom: env(safe-area-inset-bottom, 0px);
+  }
 }
 @media (min-width: 768px) {
-  .mobile-tabs { display: none; }
+  .mobile-tabs { display: none !important; }
 }
 </style>

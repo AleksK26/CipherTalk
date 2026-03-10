@@ -497,7 +497,8 @@ export default {
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: 92vh;
+  height: 100%;
+  max-height: 100vh;
   overflow: hidden;
 }
 .chat-header {
@@ -911,11 +912,27 @@ export default {
 .leave-group-btn:hover { background: #fed7d7; }
 
 @media (max-width: 767px) {
-  .chat-container { height: calc(100vh - 68px); }
+  .chat-container {
+    height: 100%;
+    max-height: calc(100vh - 60px - env(safe-area-inset-bottom, 0px) - 8px);
+    height: calc(100dvh - 60px - env(safe-area-inset-bottom, 0px) - 8px);
+  }
+
+  .chat-header {
+    padding: 10px 12px;
+  }
+  .chat-header h3 {
+    font-size: 16px;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   .group-info-sidebar {
     position: fixed;
-    top: 0; bottom: 68px;
+    top: 0;
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
     right: 0;
     width: 85%;
     max-width: 320px;
@@ -923,33 +940,62 @@ export default {
     z-index: 50;
   }
 
-  .message { max-width: 88%; }
+  .message {
+    max-width: 88%;
+    padding: 8px 10px;
+  }
 
   .attachment-container {
     width: 100%;
-    max-width: 220px;
+    max-width: 200px;
     height: auto;
     aspect-ratio: 1;
   }
 
   .message-input {
-    min-width: 80px;
+    min-width: 0;
+    flex: 1;
+    padding: 10px;
+    font-size: 14px;
   }
 
   .attach-button {
-    font-size: 12px;
+    font-size: 11px;
     padding: 8px 10px;
+    white-space: nowrap;
   }
 
   .chat-input {
-    padding: 8px;
-    gap: 6px;
+    padding: 6px 8px;
+    gap: 4px;
+    flex-wrap: nowrap;
   }
 
   .send-button {
-    padding: 10px 16px;
+    padding: 10px 14px;
     font-size: 13px;
     margin-left: 0;
+  }
+
+  .chat-messages {
+    padding: 12px 10px;
+  }
+
+  .forward-options {
+    position: fixed;
+    top: auto;
+    bottom: 60px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  .action-button {
+    width: 22px;
+    height: 22px;
+    font-size: 11px;
   }
 }
 </style>
